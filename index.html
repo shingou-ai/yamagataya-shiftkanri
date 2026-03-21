@@ -348,10 +348,16 @@
     /* date/time inputのデフォルト最小幅を解除して他のフィールドと揃える */
     input[type="date"].form-input,
     input[type="time"].form-input {
-      width: 100%;
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      -webkit-appearance: none !important;
+      appearance: none !important;
+      font-size: 13px !important;
+      padding: 8px 10px !important;
+      height: auto !important;
+      line-height: normal !important;
     }
 
     /* パターンカード */
