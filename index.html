@@ -3570,7 +3570,16 @@ function saveAccountSettings() {
   // Firebaseに管理者情報を保存（リロード後も維持）
   fbSave('/adminConfig', { id: ADMIN.id, password: ADMIN.password });
   errEl.style.display = 'none';
-  showToast('管理者アカウント情報を更新しました ✅');
+  // パスワード欄をクリアして変更完了を視覚的に示す
+  document.getElementById('as-pw-current').value = '';
+  document.getElementById('as-pw-new').value = '';
+  document.getElementById('as-pw-confirm').value = '';
+  document.getElementById('as-id').value = ADMIN.id;
+  if (newPw) {
+    showToast('パスワードを変更しました ✅');
+  } else {
+    showToast('ログインIDを更新しました ✅');
+  }
 }
 
 // ===== REQ FORM =====
