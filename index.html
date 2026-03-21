@@ -438,7 +438,7 @@
     <div class="form-group"><label>ID</label><input class="form-input" type="text" id="login-id" value="admin01" placeholder="IDを入力"></div>
     <div class="form-group"><label>パスワード</label><input class="form-input" type="password" id="login-pw" placeholder="パスワードを入力"></div>
     <div id="login-error" style="color:var(--danger);font-size:13px;text-align:center;display:none;margin-bottom:8px;">IDまたはパスワードが正しくありません</div>
-    <button class="login-btn" onclick="doLogin()">ログイン</button>
+    <button class="login-btn" onclick="doLogin()" disabled>読み込み中…</button>
   </div>
 </div>
 
@@ -1167,7 +1167,7 @@ function saveShiftNotifDismissed() {
 loadShiftNotifDismissed(); // 起動時に読み込み
 
 // ===== 管理者設定 =====
-const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: 'adminyama' };
+const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '' };
 
 // ===== FIREBASE 設定 =====
 // Firebase コンソール → プロジェクト設定 → マイアプリ → SDK設定 の値を貼り付けてください
@@ -1183,6 +1183,7 @@ const FIREBASE_CONFIG = {
 
 let _db = null;
 let _fbReady = false;
+let _fbAuthReady = false;
 
 (function initFirebase() {
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL) return;
@@ -1191,8 +1192,53 @@ let _fbReady = false;
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
-  } catch(e) { console.warn('Firebase 初期化エラー:', e); }
+    // ログイン前に認証情報とスタッフデータを先読み
+    _fbAuthReady = false;
+    Promise.all([
+      _db.ref('/adminConfig').once('value'),
+      _db.ref('/staffOverrides').once('value')
+    ]).then(([adminSnap, staffSnap]) => {
+      const c = adminSnap.val();
+      if (c) {
+        if (c.id) ADMIN.id = c.id;
+        if (c.password) ADMIN.password = c.password;
+      }
+      // パスワード未設定または旧デフォルトの場合、新パスワードに更新
+      if (!ADMIN.password || ADMIN.password === 'adminyama') {
+        ADMIN.password = '2288';
+        _db.ref('/adminConfig').set({ id: ADMIN.id, password: ADMIN.password });
+      }
+      // スタッフのパスワードをFirebaseから復元
+      const so = staffSnap.val();
+      if (so && Array.isArray(so)) {
+        so.forEach(ovr => {
+          const s = STAFF.find(x => x.id === ovr.id);
+          if (s && ovr.password) s.password = ovr.password;
+        });
+      }
+      _fbAuthReady = true;
+      // ログインボタンを有効化
+      const lb = document.querySelector('.login-btn');
+      if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+    }).catch(() => {
+      _fbAuthReady = true;
+      const lb = document.querySelector('.login-btn');
+      if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+    });
+  } catch(e) {
+    console.warn('Firebase 初期化エラー:', e);
+    const lb = document.querySelector('.login-btn');
+    if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+  }
 })();
+// Firebase未使用時はすぐにログインボタンを有効化
+if (!_fbReady) {
+  _fbAuthReady = true;
+  document.addEventListener('DOMContentLoaded', () => {
+    const lb = document.querySelector('.login-btn');
+    if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+  });
+}
 
 function fbSave(path, data) {
   if (!_fbReady) return;
@@ -1381,6 +1427,9 @@ function selectRole(r) {
   document.getElementById('login-id').value = r==='admin' ? ADMIN.id : 'S001';
 }
 function doLogin() {
+  if (_fbReady && !_fbAuthReady) {
+    showToast('認証データを読み込み中です。少しお待ちください…'); return;
+  }
   const loginId = document.getElementById('login-id').value.trim();
   const loginPw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-error');
