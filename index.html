@@ -110,8 +110,8 @@
   /* 未保存セル */
   .shift-cell.pending-cell { outline:2px dashed var(--warning) !important; outline-offset:-2px; }
   .shift-cell.pending-cell .shift-badge::after { content:'✎'; font-size:7px; vertical-align:super; margin-left:1px; opacity:.7; }
-  /* 保存バー */
-  #save-bar { display:none; align-items:center; gap:10px; background:#FFF8E1; border:1.5px solid var(--warning); border-radius:var(--radius-sm); padding:8px 14px; margin-bottom:10px; flex-wrap:wrap; }
+  /* 保存バー（画面下部固定） */
+  #save-bar { display:none; align-items:center; gap:10px; background:#FFF8E1; border-top:2px solid var(--warning); padding:10px 20px; flex-wrap:wrap; position:fixed; bottom:0; left:0; right:0; z-index:9999; box-shadow:0 -2px 10px rgba(0,0,0,.15); }
   #save-bar.has-pending { display:flex; }
   #save-bar .save-count { font-size:13px; font-weight:700; color:var(--warning); flex:1; }
   .btn-save-shift { background:var(--success); color:white; font-weight:700; }
@@ -326,7 +326,7 @@
     .palette-group-sep { margin:0 2px; }
     .palette-hint { font-size:10px; }
     .palette-dept-tab { padding:3px 7px; font-size:10px; }
-    #save-bar { padding:6px 10px; font-size:12px; }
+    #save-bar { padding:8px 12px; font-size:12px; bottom:60px; }
     #save-bar .save-count { font-size:11px; }
 
     /* データテーブル共通 */
@@ -1898,7 +1898,10 @@ function updateSaveButton() {
   const bar = document.getElementById('save-bar');
   const btn = document.getElementById('btn-save-shift');
   const txt = document.getElementById('save-count-text');
-  if (bar) { if (count > 0) bar.classList.add('has-pending'); else bar.classList.remove('has-pending'); }
+  if (bar) {
+    if (count > 0) { bar.classList.add('has-pending'); document.body.style.paddingBottom = '60px'; }
+    else { bar.classList.remove('has-pending'); document.body.style.paddingBottom = ''; }
+  }
   if (btn) btn.style.display = count > 0 ? '' : 'none';
   if (txt) txt.textContent = `⚠️ ${count}件の未保存変更があります。保存するまでスタッフには反映されません。`;
 }
