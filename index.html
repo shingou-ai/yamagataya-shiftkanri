@@ -345,6 +345,14 @@
     /* フォーム */
     .form-input { font-size:13px; padding:8px 10px; }
     .form-group label { font-size:12px; }
+    /* date/time inputのデフォルト最小幅を解除して他のフィールドと揃える */
+    input[type="date"].form-input,
+    input[type="time"].form-input {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
 
     /* パターンカード */
     .pattern-group-inner { grid-template-columns:1fr !important; gap:10px; }
