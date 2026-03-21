@@ -126,8 +126,7 @@
 
   /* SHIFT TABLE */
   .shift-table-wrap { overflow:auto; border-radius:var(--radius); box-shadow:var(--shadow); background:white; max-height:calc(100vh - 230px); max-width:100%; }
-  /* ペイントモード中はシフト表エリアのスクロール操作を抑制（誤塗り防止） */
-  .shift-table-wrap.paint-active { touch-action: none; }
+  /* ペイントモード（PC用視覚的フィードバックのみ。タッチスクロールは許可） */
   .shift-table { border-collapse:collapse; width:100%; min-width:900px; font-size:12px; }
   .shift-table th,.shift-table td { border:1px solid var(--border); padding:0; }
   .shift-table thead th { background:var(--primary); color:white; padding:10px 6px; text-align:center; white-space:nowrap; position:sticky; top:0; z-index:3; }
@@ -295,7 +294,9 @@
 
   @media (max-width:768px) {
     .sidebar { display:none; }
-    .main-content { padding:10px; padding-bottom:80px; max-width:100vw; overflow-x:hidden; }
+    .main-content { padding:10px; padding-bottom:80px; max-width:100vw; overflow-x:hidden; width:100%; }
+    .app-body { max-width:100vw; overflow-x:hidden; }
+    .page { max-width:100vw; overflow-x:hidden; }
     .app-body { overflow-x:hidden; max-width:100vw; }
     .bottom-nav { display:flex; }
     .header-user { display:none; }
@@ -783,7 +784,14 @@
       <input class="form-input" type="date" id="staff-hire-input" placeholder="例：2014-09-01" onchange="previewHireDate()">
       <div id="staff-hire-preview" style="margin-top:6px;font-size:12px;color:var(--text-muted);min-height:18px;"></div>
     </div>
-    <div class="form-group" id="staff-pw-group"><label id="staff-pw-label">パスワード（初期）</label><input class="form-input" type="password" id="staff-pw-input" placeholder="パスワードを入力"></div>
+    <div class="form-group" id="staff-pw-group">
+      <label id="staff-pw-label">パスワード（初期）</label>
+      <div style="position:relative;">
+        <input class="form-input" type="password" id="staff-pw-input" placeholder="パスワードを入力" style="padding-right:40px;">
+        <button type="button" onclick="togglePwVisibility()" id="staff-pw-toggle"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);padding:4px;">👁️</button>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('add-staff-modal')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveStaff()">保存</button>
@@ -822,22 +830,24 @@
     </div>
     <!-- 中抜け休憩 -->
     <div id="pattern-breaks-section">
-      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:8px 0 4px;">🔄 中抜け・休憩時間帯（入力すると自動計算）</div>
-      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px;">
-        <span style="font-size:12px;white-space:nowrap;">休憩①</span>
-        <div class="form-group" style="margin:0"><input class="form-input" type="time" id="pattern-break1-from" placeholder="開始" oninput="updatePatternCalc()"></div>
-        <div class="form-group" style="margin:0"><input class="form-input" type="time" id="pattern-break1-to" placeholder="終了" oninput="updatePatternCalc()"></div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:8px 0 4px;">🔄 休憩時間帯</div>
+      <div class="break-row" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+        <span style="font-size:11px;white-space:nowrap;min-width:36px;">休憩①</span>
+        <input class="form-input" type="time" id="pattern-break1-from" style="flex:1;min-width:80px;" oninput="updatePatternCalc()">
+        <span style="font-size:11px;">〜</span>
+        <input class="form-input" type="time" id="pattern-break1-to" style="flex:1;min-width:80px;" oninput="updatePatternCalc()">
       </div>
-      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px;">
-        <span style="font-size:12px;white-space:nowrap;">休憩②</span>
-        <div class="form-group" style="margin:0"><input class="form-input" type="time" id="pattern-break2-from" placeholder="開始" oninput="updatePatternCalc()"></div>
-        <div class="form-group" style="margin:0"><input class="form-input" type="time" id="pattern-break2-to" placeholder="終了" oninput="updatePatternCalc()"></div>
+      <div class="break-row" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+        <span style="font-size:11px;white-space:nowrap;min-width:36px;">休憩②</span>
+        <input class="form-input" type="time" id="pattern-break2-from" style="flex:1;min-width:80px;" oninput="updatePatternCalc()">
+        <span style="font-size:11px;">〜</span>
+        <input class="form-input" type="time" id="pattern-break2-to" style="flex:1;min-width:80px;" oninput="updatePatternCalc()">
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <div class="form-group" style="margin:0;flex:0 0 160px;"><label style="font-size:11px;">または 休憩時間（分）で直入力</label><input class="form-input" type="number" id="pattern-break-input" value="60" min="0" max="720" oninput="updatePatternCalc()"></div>
-        <div class="form-group" style="margin:0;flex:1;">
-          <label style="font-size:11px;">実働時間（自動計算）</label>
-          <div id="pattern-calc-display" style="background:var(--accent-light);border-radius:var(--radius-sm);padding:9px 14px;font-size:13px;color:var(--text-muted);min-height:44px;display:flex;align-items:center;">—</div>
+      <div class="modal-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div class="form-group" style="margin:0"><label style="font-size:11px;">休憩時間（分）</label><input class="form-input" type="number" id="pattern-break-input" value="60" min="0" max="720" oninput="updatePatternCalc()"></div>
+        <div class="form-group" style="margin:0;">
+          <label style="font-size:11px;">実働時間</label>
+          <div id="pattern-calc-display" style="background:var(--accent-light);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color:var(--text-muted);min-height:38px;display:flex;align-items:center;">—</div>
         </div>
       </div>
     </div>
@@ -1674,45 +1684,56 @@ function renderMainShiftTable() {
 }
 
 // ===== PAINT HANDLERS =====
-// pointermove + elementFromPoint を使用。
-// ① shift-cell > * に pointer-events:none を付与して <td> 自体を常にヒット
-// ② pointerdown からの距離閾値でタッチドリフト（微小ズレ）による誤塗りを防止
+// ■ PC: pointerdown(mouse) → セル即塗り + ドラッグ塗り
+// ■ スマホ: タップ → セル1つ塗り。スクロールは常に許可（preventDefault しない）
 let mouseIsDown = false;
-let paintLastKey = null; // 連続ドラッグ時の重複防止
-let paintStartX = 0, paintStartY = 0; // pointerdown の座標
+let paintLastKey = null;
+let paintStartX = 0, paintStartY = 0;
+let paintIsTouch = false;
 
 document.addEventListener('pointerdown', e => {
   if (!isPainting) return;
   const cell = e.target.closest('[data-key]');
   if (!cell) return;
-  e.preventDefault(); // スクロール抑制
+  paintIsTouch = (e.pointerType === 'touch');
+  if (!paintIsTouch) {
+    e.preventDefault(); // PC のみスクロール抑制
+  }
   mouseIsDown = true;
   paintStartX = e.clientX;
   paintStartY = e.clientY;
   paintLastKey = cell.dataset.key;
-  applyPaint(cell.dataset.key);
+  if (!paintIsTouch) {
+    applyPaint(cell.dataset.key); // PC: 即塗り
+  }
 });
 
 document.addEventListener('pointermove', e => {
   if (!mouseIsDown || !isPainting) return;
-  e.preventDefault(); // ドラッグ中のスクロール抑制
-  // 開始位置から 8px 未満の微小移動は無視（タッチドリフト誤塗り防止）
+  if (paintIsTouch) return; // タッチ: スクロール優先、ドラッグ塗り無効
+  e.preventDefault();
   if (Math.hypot(e.clientX - paintStartX, e.clientY - paintStartY) < 8) return;
-  // ビューポート座標で現在カーソル下の要素を取得（<td> が直接ヒット）
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (!el) return;
   const cell = el.closest('[data-key]');
   if (!cell) return;
   const key = cell.dataset.key;
-  if (key === paintLastKey) return; // 同セルへの連続呼び出し防止
+  if (key === paintLastKey) return;
   paintLastKey = key;
   applyPaint(key);
 }, { passive: false });
 
-document.addEventListener('pointerup',     () => { mouseIsDown = false; paintLastKey = null; });
-document.addEventListener('pointercancel', () => { mouseIsDown = false; paintLastKey = null; });
-
-// 旧イベント互換（テーブル外でリリースされた場合）
+document.addEventListener('pointerup', e => {
+  if (paintIsTouch && mouseIsDown && isPainting) {
+    // タッチ: ほぼ動いていなければタップと判定して塗る
+    const dist = Math.hypot(e.clientX - paintStartX, e.clientY - paintStartY);
+    if (dist < 15 && paintLastKey) {
+      applyPaint(paintLastKey);
+    }
+  }
+  mouseIsDown = false; paintLastKey = null; paintIsTouch = false;
+});
+document.addEventListener('pointercancel', () => { mouseIsDown = false; paintLastKey = null; paintIsTouch = false; });
 document.addEventListener('mouseup', () => { mouseIsDown = false; paintLastKey = null; });
 
 function getFiscalYear(year, month) { return month >= 4 ? year : year - 1; }
@@ -2172,6 +2193,17 @@ function previewHireDate() {
   previewEl.innerHTML = html;
 }
 
+function togglePwVisibility() {
+  const inp = document.getElementById('staff-pw-input');
+  const btn = document.getElementById('staff-pw-toggle');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁️';
+  }
+}
 function populateStaffModal(deptVal='', roleVal='') {
   const deptSel = document.getElementById('staff-dept-input');
   deptSel.innerHTML = DEPTS.map(d => `<option${d===deptVal?' selected':''}>${d}</option>`).join('');
@@ -2186,6 +2218,8 @@ function openAddStaff() {
   document.getElementById('staff-id-input').value = '';
   document.getElementById('staff-type-input').value = '正社員';
   document.getElementById('staff-pw-input').value = '';
+  document.getElementById('staff-pw-input').type = 'password';
+  document.getElementById('staff-pw-toggle').textContent = '👁️';
   document.getElementById('staff-hire-input').value = '';
   document.getElementById('staff-hire-preview').textContent = '';
   document.getElementById('staff-pw-group').style.display = '';
