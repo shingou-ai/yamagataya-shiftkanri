@@ -1203,15 +1203,16 @@ let _fbAuthReady = false;
         if (c.id) ADMIN.id = c.id;
         if (c.password) ADMIN.password = c.password;
       }
-      // パスワード未設定または旧デフォルトの場合、新パスワードに更新
+      // パスワード未設定 or 旧デフォルト'adminyama' → 2288に移行
       if (!ADMIN.password || ADMIN.password === 'adminyama') {
         ADMIN.password = '2288';
         _db.ref('/adminConfig').set({ id: ADMIN.id, password: ADMIN.password });
       }
-      // スタッフのパスワードをFirebaseから復元
+      // スタッフのパスワードをFirebaseから復元（Object形式）
       const so = staffSnap.val();
-      if (so && Array.isArray(so)) {
-        so.forEach(ovr => {
+      if (so && typeof so === 'object') {
+        Object.values(so).forEach(ovr => {
+          if (!ovr || !ovr.id) return;
           const s = STAFF.find(x => x.id === ovr.id);
           if (s && ovr.password) s.password = ovr.password;
         });
@@ -1287,10 +1288,10 @@ async function fbLoad() {
         if (!fbS) return;
         const idx = STAFF.findIndex(s => s.id === id);
         if (idx >= 0) {
-          // 既存スタッフ: null・undefined・空文字を除いてマージ
-          // → hireDate等をFirebaseの空値で上書きしないよう保護
+          // 既存スタッフ: null・undefinedを除いてマージ
+          // 空文字('')は role 等の「なし」設定として許可
           const patch = Object.fromEntries(
-            Object.entries(fbS).filter(([, v]) => v !== null && v !== undefined && v !== '')
+            Object.entries(fbS).filter(([, v]) => v !== null && v !== undefined)
           );
           Object.assign(STAFF[idx], patch);
         } else if (fbS.id && fbS.name) {
@@ -3628,10 +3629,12 @@ function saveAccountSettings() {
   document.getElementById('as-pw-confirm').value = '';
   document.getElementById('as-id').value = ADMIN.id;
   if (newPw) {
-    showToast('パスワードを変更しました ✅');
+    showToast('パスワードを変更しました ✅ 次回ログインから新パスワードを使用してください');
   } else {
     showToast('ログインIDを更新しました ✅');
   }
+  // 設定画面を再描画して最新状態を反映
+  renderAccountSettings();
 }
 
 // ===== REQ FORM =====
