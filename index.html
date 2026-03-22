@@ -759,6 +759,15 @@
               <button class="btn btn-primary" onclick="saveSysConfig()">💾 設定を保存</button>
             </div>
           </div>
+          <div class="card" style="flex:1;min-width:280px;max-width:480px;">
+            <div class="card-title">👥 サブ管理者</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">スタッフとして登録された人に管理者権限を付与します。スタッフタブからログインすると管理者モードで入れます。</div>
+            <div id="sub-admin-list" style="margin-bottom:14px;"></div>
+            <div style="display:flex;gap:8px;">
+              <select class="form-input" id="sub-admin-select" style="flex:1;"></select>
+              <button class="btn btn-primary" onclick="addSubAdmin()">追加</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1315,6 +1324,8 @@ loadShiftNotifDismissed(); // 起動時に読み込み
 
 // ===== 管理者設定 =====
 const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '', staffId: '' };
+// サブ管理者（スタッフIDリスト）：スタッフとして登録されているが管理者権限を持つ人
+let SUB_ADMINS = ['A00003'];
 
 // ===== FIREBASE 設定 =====
 // Firebase コンソール → プロジェクト設定 → マイアプリ → SDK設定 の値を貼り付けてください
@@ -1570,6 +1581,12 @@ async function fbLoad() {
       if (d.adminConfig.password) ADMIN.password = d.adminConfig.password;
       if (d.adminConfig.staffId !== undefined) ADMIN.staffId = d.adminConfig.staffId;
     }
+    // サブ管理者リストをFirebaseから復元（未登録なら初期値 A00003 を保存）
+    if (d.subAdmins && Array.isArray(d.subAdmins)) {
+      SUB_ADMINS.splice(0, SUB_ADMINS.length, ...d.subAdmins);
+    } else {
+      fbSave('/subAdmins', SUB_ADMINS); // 初回：デフォルト値を書き込み
+    }
     console.log('Firebase データ読み込み完了');
   } catch(e) { console.warn('Firebase 読み込みエラー:', e); }
 }
@@ -1718,11 +1735,20 @@ function tryAutoLogin() {
   const sess = _loadSession();
   if (!sess) return;
   if (sess.role === 'admin') {
-    // 管理者セッション検証
-    if (!ADMIN.id) { _clearSession(); return; }
-    currentRole = 'admin';
-    currentStaffId = null;
-    currentStaffName = ADMIN.name || sess.staffName;
+    if (sess.staffId && SUB_ADMINS.includes(sess.staffId)) {
+      // サブ管理者セッション検証
+      const s = STAFF.find(x => x.active && x.id === sess.staffId);
+      if (!s) { _clearSession(); return; }
+      currentRole = 'admin';
+      currentStaffId = s.id;
+      currentStaffName = s.name;
+    } else {
+      // プライマリ管理者セッション検証
+      if (!ADMIN.id) { _clearSession(); return; }
+      currentRole = 'admin';
+      currentStaffId = null;
+      currentStaffName = ADMIN.name || sess.staffName;
+    }
     _isAdminAccount = true;
     _enterApp(true);
   } else {
@@ -1759,7 +1785,13 @@ function doLogin() {
     if (loginPw !== s.password) { errEl.style.display = ''; return; }
     currentStaffId = s.id;
     currentStaffName = s.name;
-    _isAdminAccount = false;
+    // サブ管理者チェック：スタッフタブでログインしても管理者権限を付与
+    if (SUB_ADMINS.includes(s.id)) {
+      currentRole = 'admin';
+      _isAdminAccount = true;
+    } else {
+      _isAdminAccount = false;
+    }
   }
   errEl.style.display = 'none';
   _saveSession(); // セッション保存（30日間有効）
@@ -1777,7 +1809,9 @@ function doLogout() {
 function updateRoleSwitchBtn() {
   const btn = document.getElementById('role-switch-btn');
   if (!btn) return;
-  const linkedStaff = ADMIN.staffId ? STAFF.find(x => x.active && x.id === ADMIN.staffId) : null;
+  // サブ管理者はcurrentStaffId、プライマリ管理者はADMIN.staffIdをリンク先として使う
+  const linkedStaffId = currentStaffId || ADMIN.staffId;
+  const linkedStaff = linkedStaffId ? STAFF.find(x => x.active && x.id === linkedStaffId) : null;
   if (_isAdminAccount && linkedStaff) {
     btn.style.display = '';
     btn.textContent = currentRole === 'admin' ? '👤 スタッフ切替' : '🏯 管理者切替';
@@ -1786,7 +1820,8 @@ function updateRoleSwitchBtn() {
   }
 }
 function switchRole() {
-  const linkedStaff = ADMIN.staffId ? STAFF.find(x => x.active && x.id === ADMIN.staffId) : null;
+  const linkedStaffId = currentStaffId || ADMIN.staffId;
+  const linkedStaff = linkedStaffId ? STAFF.find(x => x.active && x.id === linkedStaffId) : null;
   if (!linkedStaff) { showToast('連携スタッフが見つかりません'); return; }
   if (currentRole === 'admin') {
     currentRole = 'staff';
@@ -1794,8 +1829,14 @@ function switchRole() {
     currentStaffName = linkedStaff.name;
   } else {
     currentRole = 'admin';
-    currentStaffId = null;
-    currentStaffName = ADMIN.name;
+    if (SUB_ADMINS.includes(currentStaffId)) {
+      // サブ管理者：currentStaffIdを保持したままadminモードへ
+      currentStaffName = linkedStaff.name;
+    } else {
+      // プライマリ管理者：currentStaffIdをリセット
+      currentStaffId = null;
+      currentStaffName = ADMIN.name;
+    }
   }
   _saveSession();
   document.getElementById('role-badge').textContent = currentRole === 'admin' ? '管理者' : 'スタッフ';
@@ -4142,6 +4183,29 @@ function renderAccountSettings() {
       sel.appendChild(opt);
     });
   }
+  // サブ管理者リスト描画
+  const saList = document.getElementById('sub-admin-list');
+  if (saList) {
+    saList.innerHTML = SUB_ADMINS.length === 0
+      ? '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">登録なし</div>'
+      : SUB_ADMINS.map((id, i) => {
+          const s = STAFF.find(x => x.id === id);
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <span style="font-size:14px;font-weight:600">${s ? s.name : id}</span>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:8px;">${id}</span>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deleteSubAdmin(${i})">削除</button>
+          </div>`;
+        }).join('');
+  }
+  const saSel = document.getElementById('sub-admin-select');
+  if (saSel) {
+    const candidates = STAFF.filter(s => s.active && !SUB_ADMINS.includes(s.id));
+    saSel.innerHTML = candidates.length === 0
+      ? '<option value="">追加できるスタッフがいません</option>'
+      : candidates.map(s => `<option value="${s.id}">${s.name}（${s.id}）</option>`).join('');
+  }
   // システム設定の現在値をセット
   const inp = document.getElementById('sys-annual-rest');
   if (inp) inp.value = FY_REST_TARGET;
@@ -4169,6 +4233,27 @@ function saveSysConfig() {
   FY_REST_TARGET = v;
   fbSave('/sysConfig/annualRestTarget', v);
   showToast(`年間取得休日の目標を ${v} 日に設定しました ✅`);
+}
+function addSubAdmin() {
+  const sel = document.getElementById('sub-admin-select');
+  const id = sel ? sel.value : '';
+  if (!id) { showToast('スタッフを選択してください'); return; }
+  if (SUB_ADMINS.includes(id)) { showToast('すでに登録済みです'); return; }
+  SUB_ADMINS.push(id);
+  fbSave('/subAdmins', SUB_ADMINS);
+  const s = STAFF.find(x => x.id === id);
+  showToast(`「${s ? s.name : id}」にサブ管理者権限を付与しました ✅`);
+  renderAccountSettings();
+}
+function deleteSubAdmin(idx) {
+  const id = SUB_ADMINS[idx];
+  const s = STAFF.find(x => x.id === id);
+  showConfirm(`「${s ? s.name : id}」の管理者権限を削除しますか？`, '', () => {
+    SUB_ADMINS.splice(idx, 1);
+    fbSave('/subAdmins', SUB_ADMINS);
+    showToast('サブ管理者権限を削除しました');
+    renderAccountSettings();
+  });
 }
 function saveAccountSettings() {
   const newId  = document.getElementById('as-id').value.trim();
