@@ -1341,10 +1341,13 @@ let _fbAuthReady = false;
       // ログインボタンを有効化
       const lb = document.querySelector('.login-btn');
       if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+      // 自動ログイン試行（認証データ読み込み完了後）
+      tryAutoLogin();
     }).catch(() => {
       _fbAuthReady = true;
       const lb = document.querySelector('.login-btn');
       if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+      tryAutoLogin();
     });
   } catch(e) {
     console.warn('Firebase 初期化エラー:', e);
@@ -1623,37 +1626,32 @@ function selectRole(r) {
   document.getElementById('role-staff').classList.toggle('active', r==='staff');
   document.getElementById('login-id').value = r==='admin' ? ADMIN.id : 'S001';
 }
-function doLogin() {
-  if (_fbReady && !_fbAuthReady) {
-    showToast('認証データを読み込み中です。少しお待ちください…'); return;
-  }
-  const loginId = document.getElementById('login-id').value.trim();
-  const loginPw = document.getElementById('login-pw').value;
-  const errEl = document.getElementById('login-error');
-  // 認証チェック
-  if (currentRole === 'admin') {
-    if (loginId !== ADMIN.id) { errEl.style.display = ''; return; }
-    // 管理者パスワード未設定 → 初期パスワード設定フロー
-    if (!ADMIN.password) {
-      showInitPwModal('admin', loginId, loginPw);
-      return;
-    }
-    if (loginPw !== ADMIN.password) { errEl.style.display = ''; return; }
-    currentStaffId = null;
-    currentStaffName = ADMIN.name;
-  } else {
-    const s = STAFF.find(x => x.active && x.id === loginId);
-    if (!s) { errEl.style.display = ''; return; }
-    // スタッフパスワード未設定 → 初期パスワード設定フロー
-    if (!s.password) {
-      showInitPwModal('staff', loginId, loginPw);
-      return;
-    }
-    if (loginPw !== s.password) { errEl.style.display = ''; return; }
-    currentStaffId = s.id;
-    currentStaffName = s.name;
-  }
-  errEl.style.display = 'none';
+// ===== セッション管理（30日間自動ログイン）=====
+const _SESSION_KEY = 'ymShiftSession';
+const _SESSION_DAYS = 30;
+function _saveSession() {
+  try {
+    localStorage.setItem(_SESSION_KEY, JSON.stringify({
+      role: currentRole, staffId: currentStaffId, staffName: currentStaffName,
+      savedAt: Date.now()
+    }));
+  } catch(e) {}
+}
+function _loadSession() {
+  try {
+    const raw = localStorage.getItem(_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (Date.now() - s.savedAt > _SESSION_DAYS * 86400000) { _clearSession(); return null; }
+    return s;
+  } catch(e) { return null; }
+}
+function _clearSession() {
+  try { localStorage.removeItem(_SESSION_KEY); } catch(e) {}
+}
+
+// ログイン後の共通UI処理
+function _enterApp(isAuto) {
   document.getElementById('login-screen').style.display = 'none';
   const app = document.getElementById('app');
   app.style.display = 'flex'; app.style.flexDirection = 'column';
@@ -1664,28 +1662,76 @@ function doLogin() {
   document.getElementById('bottom-nav-admin').style.display = currentRole==='admin' ? '' : 'none';
   document.getElementById('bottom-nav-staff').style.display = currentRole==='staff' ? '' : 'none';
   staffDisplayOrder = STAFF.filter(s=>s.active).map(s=>s.id);
-  // 月ラベルを現在の月で初期化
   const _initLabel = `${currentMonth.year}年${currentMonth.month}月`;
   ['month-label','month-label-staff','month-label-all','month-label-report'].forEach(id => {
     const el = document.getElementById(id); if (el) el.textContent = _initLabel;
   });
   const rSub = document.getElementById('report-subtitle');
   if (rSub) rSub.textContent = `${currentMonth.year}年${currentMonth.month}月の勤務集計`;
-  // Firebase からデータを読み込んでから画面表示
   if (_fbReady) {
-    showToast('データを読み込み中… ⏳');
+    if (!isAuto) showToast('データを読み込み中… ⏳');
     fbLoad().then(() => {
       fbStartListeners();
-      // 管理者ログイン時は常に最新のSTAFFをFirebaseに同期（マージ後の完全データを保存）
       if (currentRole === 'admin') fbSaveStaffOverrides();
       renderPublishBtn();
+      if (isAuto) showToast(`おかえりなさい、${currentStaffName}さん ✨`);
       showPage(currentRole==='admin' ? 'shift-table' : 'my-shift');
     });
   } else {
     showPage(currentRole==='admin' ? 'shift-table' : 'my-shift');
   }
 }
+
+// 自動ログイン試行（Firebase認証データ読み込み完了後に呼ぶ）
+function tryAutoLogin() {
+  const sess = _loadSession();
+  if (!sess) return;
+  if (sess.role === 'admin') {
+    // 管理者セッション検証
+    if (!ADMIN.id) { _clearSession(); return; }
+    currentRole = 'admin';
+    currentStaffId = null;
+    currentStaffName = ADMIN.name || sess.staffName;
+    _enterApp(true);
+  } else {
+    // スタッフセッション検証：在籍・アクティブ確認
+    const s = STAFF.find(x => x.active && x.id === sess.staffId);
+    if (!s) { _clearSession(); return; }
+    currentRole = 'staff';
+    currentStaffId = s.id;
+    currentStaffName = s.name;
+    _enterApp(true);
+  }
+}
+
+function doLogin() {
+  if (_fbReady && !_fbAuthReady) {
+    showToast('認証データを読み込み中です。少しお待ちください…'); return;
+  }
+  const loginId = document.getElementById('login-id').value.trim();
+  const loginPw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-error');
+  // 認証チェック
+  if (currentRole === 'admin') {
+    if (loginId !== ADMIN.id) { errEl.style.display = ''; return; }
+    if (!ADMIN.password) { showInitPwModal('admin', loginId, loginPw); return; }
+    if (loginPw !== ADMIN.password) { errEl.style.display = ''; return; }
+    currentStaffId = null;
+    currentStaffName = ADMIN.name;
+  } else {
+    const s = STAFF.find(x => x.active && x.id === loginId);
+    if (!s) { errEl.style.display = ''; return; }
+    if (!s.password) { showInitPwModal('staff', loginId, loginPw); return; }
+    if (loginPw !== s.password) { errEl.style.display = ''; return; }
+    currentStaffId = s.id;
+    currentStaffName = s.name;
+  }
+  errEl.style.display = 'none';
+  _saveSession(); // セッション保存（30日間有効）
+  _enterApp(false);
+}
 function doLogout() {
+  _clearSession(); // セッション削除
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   selectedPalette = null;
@@ -3979,6 +4025,7 @@ function saveStaffPassword() {
   // パスワードを更新
   staff.password = newPw;
   fbSaveStaffOverrides(); // Firebase保存（管理者側にもリアルタイム反映）
+  _saveSession(); // 自動ログインセッションも更新
   errEl.style.display = 'none';
 
   // フォームクリア
@@ -3986,7 +4033,7 @@ function saveStaffPassword() {
   document.getElementById('staff-pw-new').value = '';
   document.getElementById('staff-pw-confirm').value = '';
 
-  showToast('✅ パスワードを変更しました。次回ログインから新しいパスワードを使用してください。');
+  showToast('✅ パスワードを変更しました。');
 }
 
 // ===== ACCOUNT SETTINGS =====
