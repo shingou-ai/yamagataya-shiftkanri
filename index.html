@@ -1153,8 +1153,21 @@ function generatePatId() {
   return 'P' + String(max + 1).padStart(3, '0');
 }
 
-// 宿直担当マスタ（スタッフID）
-let SHUKUCHO_MASTERS = ['A00005','A00006','A00007','A00008'];
+// 宿直担当マスタ（{id, nickname} オブジェクト配列）
+let SHUKUCHO_MASTERS = [
+  {id:'A00005', nickname:''},
+  {id:'A00006', nickname:''},
+  {id:'A00007', nickname:''},
+  {id:'A00008', nickname:''}
+];
+// 宿直担当者の表示名（ニックネーム優先、未設定なら本名）
+function shukuchoLabel(id) {
+  if (!id) return '—';
+  const m = SHUKUCHO_MASTERS.find(x => x.id === id);
+  if (m && m.nickname) return m.nickname;
+  const s = STAFF.find(x => x.id === id);
+  return s ? s.name : id;
+}
 // 宿直データ：key = "year-month-day", value = staffId
 let shukuchoData = {};
 
@@ -1524,9 +1537,12 @@ async function fbLoad() {
       });
       if (logMigrated) fbSave('/shiftChangeLog', shiftChangeLog);
     }
-    // 宿直担当マスタをFirebaseから復元
+    // 宿直担当マスタをFirebaseから復元（旧: 文字列配列 → 新: {id,nickname}配列 にマイグレーション）
     if (d.shukuchoMasters && Array.isArray(d.shukuchoMasters)) {
-      SHUKUCHO_MASTERS.splice(0, SHUKUCHO_MASTERS.length, ...d.shukuchoMasters);
+      const migrated = d.shukuchoMasters.map(entry =>
+        typeof entry === 'string' ? { id: entry, nickname: '' } : entry
+      );
+      SHUKUCHO_MASTERS.splice(0, SHUKUCHO_MASTERS.length, ...migrated);
     }
     // 部署リストをFirebaseから復元
     if (d.depts && Array.isArray(d.depts) && d.depts.length > 0) {
@@ -2088,9 +2104,9 @@ function renderMainShiftTable() {
     const warnName = isWarn ? patName(warnShiftId) : '';
     const warnTitle = isWarn ? ` title="⚠️ ${warnName}のため宿直不可の可能性"` : '';
     let opts = `<option value="" ${val===''?'selected':''}>—</option>`;
-    SHUKUCHO_MASTERS.forEach(id => {
-      const s = STAFF.find(x=>x.id===id);
-      if (s) opts += `<option value="${id}" ${val===id?'selected':''}>${s.name}</option>`;
+    SHUKUCHO_MASTERS.forEach(m => {
+      const id = m.id;
+      if (STAFF.find(x=>x.id===id)) opts += `<option value="${id}" ${val===id?'selected':''}>${shukuchoLabel(id)}</option>`;
     });
     tfoot += `<td class="${d===_todayD?'today-col':''}${isWarn?' shukucho-warn':''}"${warnTitle}><select class="shukucho-select${isWarn?' shukucho-warn':''}" onchange="setShukucho('${key}',this.value)">${opts}</select>${isWarn?'<span style="font-size:9px;display:block;color:#856404;font-weight:700;">⚠️'+warnName+'</span>':''}</td>`;
   }
@@ -2665,8 +2681,7 @@ function renderAllShiftTable() {
   tfoot += '<tr class="shukucho-row"><td class="staff-col">🌙 宿直</td>';
   for (let d=1; d<=days; d++) {
     const val = shukuchoData[`${year}-${month}-${d}`] || '';
-    const s = STAFF.find(x=>x.id===val);
-    const name = s ? s.name.replace(/\s/g,'') : '—';
+    const name = shukuchoLabel(val).replace(/\s/g,'');
     tfoot += `<td class="${d===_tD?'today-col':''}" style="text-align:center;font-size:11px;font-weight:600;color:#4A235A;padding:3px 2px;">${name}</td>`;
   }
   tfoot += '<td colspan="2"></td></tr>';
@@ -2955,19 +2970,26 @@ function renderDeptRolePage() {
   if (shList) {
     shList.innerHTML = SHUKUCHO_MASTERS.length === 0
       ? '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">登録なし</div>'
-      : SHUKUCHO_MASTERS.map((id, i) => {
-          const s = STAFF.find(x=>x.id===id);
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-            <span style="font-size:14px;font-weight:600">${s ? s.name : id}</span>
-            <span style="font-size:12px;color:var(--text-muted)">${s ? s.dept : ''}</span>
-            <button class="btn btn-danger btn-sm" onclick="deleteShukuchoMaster(${i})">削除</button>
+      : SHUKUCHO_MASTERS.map((m, i) => {
+          const s = STAFF.find(x=>x.id===m.id);
+          return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:14px;font-weight:600">${s ? s.name : m.id}</span>
+              <span style="font-size:12px;color:var(--text-muted)">${s ? s.dept : ''}</span>
+              <button class="btn btn-danger btn-sm" onclick="deleteShukuchoMaster(${i})">削除</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap;">ニックネーム</label>
+              <input class="form-input" id="shukucho-nick-${i}" value="${m.nickname||''}" placeholder="シフト表に表示する名前（例：山田）" style="flex:1;font-size:13px;padding:4px 8px;">
+              <button class="btn btn-ghost btn-sm" onclick="saveShukuchoNickname(${i})">保存</button>
+            </div>
           </div>`;
         }).join('');
   }
   // Populate shukucho-master-select with eligible staff (not already in masters)
   const shSel = document.getElementById('shukucho-master-select');
   if (shSel) {
-    const candidates = STAFF.filter(s => s.active && !SHUKUCHO_MASTERS.includes(s.id));
+    const candidates = STAFF.filter(s => s.active && !SHUKUCHO_MASTERS.some(m => m.id === s.id));
     shSel.innerHTML = candidates.length === 0
       ? '<option value="">追加できるスタッフがいません</option>'
       : candidates.map(s => `<option value="${s.id}">${s.name}（${s.dept}）</option>`).join('');
@@ -3019,22 +3041,30 @@ function addShukuchoMaster() {
   const sel = document.getElementById('shukucho-master-select');
   const id = sel ? sel.value : '';
   if (!id) { showToast('スタッフを選択してください'); return; }
-  if (SHUKUCHO_MASTERS.includes(id)) { showToast('すでに登録済みです'); return; }
-  SHUKUCHO_MASTERS.push(id);
+  if (SHUKUCHO_MASTERS.some(m => m.id === id)) { showToast('すでに登録済みです'); return; }
+  SHUKUCHO_MASTERS.push({id, nickname:''});
   fbSave('/shukuchoMasters', SHUKUCHO_MASTERS);
   const s = STAFF.find(x=>x.id===id);
   showToast(`「${s ? s.name : id}」を宿直担当マスタに追加しました ✅`);
   renderDeptRolePage();
 }
 function deleteShukuchoMaster(idx) {
-  const id = SHUKUCHO_MASTERS[idx];
-  const s = STAFF.find(x=>x.id===id);
-  showConfirm(`「${s ? s.name : id}」を宿直担当マスタから削除しますか？`, '', () => {
+  const m = SHUKUCHO_MASTERS[idx];
+  const s = STAFF.find(x=>x.id===m.id);
+  showConfirm(`「${s ? s.name : m.id}」を宿直担当マスタから削除しますか？`, '', () => {
     SHUKUCHO_MASTERS.splice(idx, 1);
     fbSave('/shukuchoMasters', SHUKUCHO_MASTERS);
     showToast('削除しました');
     renderDeptRolePage();
   });
+}
+function saveShukuchoNickname(idx) {
+  const input = document.getElementById(`shukucho-nick-${idx}`);
+  if (!input || !SHUKUCHO_MASTERS[idx]) return;
+  SHUKUCHO_MASTERS[idx].nickname = input.value.trim();
+  fbSave('/shukuchoMasters', SHUKUCHO_MASTERS);
+  showToast('ニックネームを保存しました ✅');
+  renderDeptRolePage();
 }
 
 function renderPatterns() {
