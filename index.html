@@ -511,7 +511,7 @@
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <div class="month-nav">
               <button class="month-nav-btn" onclick="changeMonth(-1,'shift-table')">‹</button>
-              <div class="month-label" id="month-label">2026年3月</div>
+              <div class="month-label" id="month-label"></div>
               <button class="month-nav-btn" onclick="changeMonth(1,'shift-table')">›</button>
             </div>
             <button class="btn btn-outline btn-sm" id="btn-publish-month" onclick="togglePublishMonth()" title="公開するとスタッフに変更通知が届くようになります">📢 公開</button>
@@ -577,12 +577,12 @@
         <div class="page-header">
           <div>
             <div class="page-title">📊 集計レポート</div>
-            <div class="page-subtitle" id="report-subtitle">2026年3月の勤務集計</div>
+            <div class="page-subtitle" id="report-subtitle"></div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <div class="month-nav">
               <button class="month-nav-btn" onclick="changeMonth(-1,'report')">‹</button>
-              <div class="month-label" id="month-label-report">2026年3月</div>
+              <div class="month-label" id="month-label-report"></div>
               <button class="month-nav-btn" onclick="changeMonth(1,'report')">›</button>
             </div>
             <button class="btn btn-outline btn-sm" onclick="exportReportCSV()">📥 CSV</button>
@@ -672,7 +672,7 @@
           <div><div class="page-title">📅 マイシフト</div><div class="page-subtitle" id="my-shift-subtitle">田村 花子さんのシフト</div></div>
           <div class="month-nav">
             <button class="month-nav-btn" onclick="changeMonth(-1,'my-shift')">‹</button>
-            <div class="month-label" id="month-label-staff">2026年3月</div>
+            <div class="month-label" id="month-label-staff"></div>
             <button class="month-nav-btn" onclick="changeMonth(1,'my-shift')">›</button>
           </div>
         </div>
@@ -701,7 +701,7 @@
           <div><div class="page-title">👥 全体シフト表</div><div class="page-subtitle">閲覧専用</div></div>
           <div class="month-nav">
             <button class="month-nav-btn" onclick="changeMonth(-1,'all-shift')">‹</button>
-            <div class="month-label" id="month-label-all">2026年3月</div>
+            <div class="month-label" id="month-label-all"></div>
             <button class="month-nav-btn" onclick="changeMonth(1,'all-shift')">›</button>
           </div>
         </div>
@@ -1156,38 +1156,75 @@ PATTERNS.forEach(p => {
   }
 });
 
-// ===== 日本の祝日・振替休日 =====
-const HOLIDAYS = {
-  // 2025
-  '2025-1-1':'元日','2025-1-13':'成人の日','2025-2-11':'建国記念の日',
-  '2025-2-23':'天皇誕生日','2025-2-24':'振替休日','2025-3-20':'春分の日',
-  '2025-4-29':'昭和の日','2025-5-3':'憲法記念日','2025-5-4':'みどりの日',
-  '2025-5-5':'こどもの日','2025-5-6':'振替休日','2025-7-21':'海の日',
-  '2025-8-11':'山の日','2025-9-15':'敬老の日','2025-9-23':'秋分の日',
-  '2025-10-13':'スポーツの日','2025-11-3':'文化の日',
-  '2025-11-23':'勤労感謝の日','2025-11-24':'振替休日',
-  // 2026
-  '2026-1-1':'元日','2026-1-12':'成人の日','2026-2-11':'建国記念の日',
-  '2026-2-23':'天皇誕生日','2026-3-20':'春分の日','2026-4-29':'昭和の日',
-  '2026-5-3':'憲法記念日','2026-5-4':'みどりの日','2026-5-5':'こどもの日',
-  '2026-5-6':'振替休日','2026-7-20':'海の日','2026-8-11':'山の日',
-  '2026-9-21':'敬老の日','2026-9-22':'国民の休日','2026-9-23':'秋分の日',
-  '2026-10-12':'スポーツの日','2026-11-3':'文化の日','2026-11-23':'勤労感謝の日',
-  // 2027
-  '2027-1-1':'元日','2027-1-11':'成人の日','2027-2-11':'建国記念の日',
-  '2027-2-23':'天皇誕生日','2027-3-21':'春分の日','2027-3-22':'振替休日',
-  '2027-4-29':'昭和の日','2027-5-3':'憲法記念日','2027-5-4':'みどりの日',
-  '2027-5-5':'こどもの日','2027-7-19':'海の日','2027-8-11':'山の日',
-  '2027-9-20':'敬老の日','2027-9-23':'秋分の日','2027-10-11':'スポーツの日',
-  '2027-11-3':'文化の日','2027-11-23':'勤労感謝の日',
-};
+// ===== 日本の祝日・振替休日（動的計算）=====
+// 春分の日の計算（天文学的近似式、2000-2099年対応）
+function _shunbun(y) { return Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)); }
+// 秋分の日の計算（天文学的近似式、2000-2099年対応）
+function _shuubun(y) { return Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)); }
+// 第N月曜日を計算
+function _nthMonday(y, m, n) {
+  const first = new Date(y, m - 1, 1).getDay(); // 0=日
+  const d = ((1 - first + 7) % 7) + 1 + (n - 1) * 7;
+  return d;
+}
+// 指定年の全祝日を生成（振替休日・国民の休日含む）
+const _holidayCache = {};
+function _buildHolidays(y) {
+  if (_holidayCache[y]) return _holidayCache[y];
+  const h = {};
+  const add = (m, d, name) => { h[`${y}-${m}-${d}`] = name; };
+  // 固定祝日
+  add(1, 1, '元日');
+  add(2, 11, '建国記念の日');
+  add(2, 23, '天皇誕生日');
+  add(4, 29, '昭和の日');
+  add(5, 3, '憲法記念日');
+  add(5, 4, 'みどりの日');
+  add(5, 5, 'こどもの日');
+  add(8, 11, '山の日');
+  add(11, 3, '文化の日');
+  add(11, 23, '勤労感謝の日');
+  // ハッピーマンデー（第N月曜）
+  add(1, _nthMonday(y, 1, 2), '成人の日');
+  add(7, _nthMonday(y, 7, 3), '海の日');
+  add(9, _nthMonday(y, 9, 3), '敬老の日');
+  add(10, _nthMonday(y, 10, 2), 'スポーツの日');
+  // 春分・秋分（天文計算）
+  add(3, _shunbun(y), '春分の日');
+  add(9, _shuubun(y), '秋分の日');
+  // 振替休日：祝日が日曜の場合、翌月曜（または翌日以降の最初の平日）
+  const keys = Object.keys(h).slice();
+  keys.forEach(k => {
+    const [, mm, dd] = k.split('-').map(Number);
+    const dt = new Date(y, mm - 1, dd);
+    if (dt.getDay() === 0) { // 日曜
+      let next = new Date(dt); next.setDate(next.getDate() + 1);
+      while (h[`${y}-${next.getMonth()+1}-${next.getDate()}`]) { next.setDate(next.getDate() + 1); }
+      h[`${y}-${next.getMonth()+1}-${next.getDate()}`] = '振替休日';
+    }
+  });
+  // 国民の休日：祝日に挟まれた平日
+  const allDates = Object.keys(h).map(k => { const p = k.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); });
+  allDates.sort((a, b) => a - b);
+  for (let i = 0; i < allDates.length - 1; i++) {
+    const diff = (allDates[i+1] - allDates[i]) / 86400000;
+    if (diff === 2) {
+      const mid = new Date(allDates[i]); mid.setDate(mid.getDate() + 1);
+      const midKey = `${y}-${mid.getMonth()+1}-${mid.getDate()}`;
+      if (!h[midKey] && mid.getDay() !== 0) { h[midKey] = '国民の休日'; }
+    }
+  }
+  _holidayCache[y] = h;
+  return h;
+}
 function getHoliday(year, month, day) {
-  return HOLIDAYS[`${year}-${month}-${day}`] || null;
+  const h = _buildHolidays(year);
+  return h[`${year}-${month}-${day}`] || null;
 }
 
 // ===== STATE =====
 let currentRole = 'admin';
-let currentMonth = { year:2026, month:3 };
+let currentMonth = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
 let selectedPalette = null;
 let isPainting = false;
 let staffDisplayOrder = []; // staff IDs in display order
@@ -1537,6 +1574,13 @@ function doLogin() {
   document.getElementById('bottom-nav-admin').style.display = currentRole==='admin' ? '' : 'none';
   document.getElementById('bottom-nav-staff').style.display = currentRole==='staff' ? '' : 'none';
   staffDisplayOrder = STAFF.filter(s=>s.active).map(s=>s.id);
+  // 月ラベルを現在の月で初期化
+  const _initLabel = `${currentMonth.year}年${currentMonth.month}月`;
+  ['month-label','month-label-staff','month-label-all','month-label-report'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = _initLabel;
+  });
+  const rSub = document.getElementById('report-subtitle');
+  if (rSub) rSub.textContent = `${currentMonth.year}年${currentMonth.month}月の勤務集計`;
   // Firebase からデータを読み込んでから画面表示
   if (_fbReady) {
     showToast('データを読み込み中… ⏳');
@@ -3911,7 +3955,7 @@ function saveAccountSettings() {
 }
 
 // ===== REQ FORM =====
-let reqDraft = {}; // reqDraft['2026-4'][5] = true → 5日休みたい
+let reqDraft = {}; // reqDraft['YYYY-M'][day] = true → 休みたい日
 let reqFormSel = null; // { year, month }
 let reqNotifLog = []; // { staffId, year, month, days:[], status, at, reqIdx }
 let reqNotifDismissed = {}; // staffId -> timestamp（localStorage + Firebase 二重永続化）
