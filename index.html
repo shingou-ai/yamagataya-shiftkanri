@@ -1468,14 +1468,31 @@ async function fbLoad() {
     {
       const nameToId = {};
       PATTERNS.forEach(p => { nameToId[p.name] = p.id; });
+      // 旧パターン名・SHIFT_POOLダミー値 → 現在のIDへのレガシーマッピング
+      // （パターン名が変更された場合や旧SHIFT_POOL値に対応）
+      const _findId = name => { const p = PATTERNS.find(x=>x.name===name); return p ? p.id : null; };
+      const LEGACY_MAP = {
+        // SHIFT_POOLダミー値（旧initShiftData）
+        '早番': _findId('早') || _findId('フ早') || 'P004',
+        '夜勤': _findId('夜警') || 'P025',
+        // 旧フロント系パターン名（改名前）
+        'フ早':   _findId('早')   || 'P004',
+        'フA':    _findId('A')    || 'P005',
+        'フB番':  _findId('B')    || 'P006',
+        'フ遅番': _findId('遅番') || 'P007',
+        'フ超遅': _findId('超遅') || 'P008',
+        'フ中抜け': _findId('フ中抜け') || 'P009',
+        // 旧ルーム系
+        'ル超早': _findId('超早') || 'P010',
+      };
       let converted = 0;
       Object.keys(shiftData).forEach(key => {
         const v = shiftData[key];
         if (!v) return;
-        // 既にIDとして有効なら変換不要
-        if (patById(v)) return;
-        // パターン名としてマッチすればIDに変換
-        if (nameToId[v]) { shiftData[key] = nameToId[v]; converted++; }
+        if (patById(v)) return; // 既にIDとして有効なら変換不要
+        const newId = nameToId[v] || LEGACY_MAP[v];
+        if (newId) { shiftData[key] = newId; converted++; }
+        else { delete shiftData[key]; converted++; } // マッチしない旧値は削除（未定扱い）
       });
       if (converted > 0) {
         console.log(`✅ シフトデータ ${converted}件をパターンID形式に変換しました`);
