@@ -173,6 +173,10 @@
 
   /* SHIFT BADGES */
   .shift-badge { display:inline-block; padding:3px 6px; border-radius:6px; font-size:11px; font-weight:700; line-height:1.2; white-space:nowrap; }
+  /* シフト時間ツールチップ */
+  #shift-time-tooltip { position:fixed; background:#333; color:#fff; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; pointer-events:none; z-index:99999; white-space:nowrap; display:none; box-shadow:0 2px 8px rgba(0,0,0,.3); }
+  /* 宿直×休み警告 */
+  .shukucho-warn { background:#FFF3CD !important; color:#856404 !important; }
   .sb-早番  { background:#FFF3CD; color:#856404; }
   .sb-中抜け{ background:#FFF8E1; color:#F57F17; }
   .sb-遅番  { background:#D1ECF1; color:#0c5460; }
@@ -950,6 +954,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="shift-time-tooltip"></div>
 
 <script>
 // ===== DATA =====
@@ -1718,8 +1723,8 @@ function renderMainShiftTable() {
     for (let d=1; d<=days; d++) {
       const key = `${year}-${month}-${d}-${s.id}`;
       const shift = shiftData[key] || '未定';
-      const isOff = shift==='公休'||shift==='有休'||shift==='特休'||shift==='希望休';
-      const isWork = shift!=='公休'&&shift!=='有休'&&shift!=='特休'&&shift!=='希望休'&&shift!=='未定';
+      const isOff = shift==='公休'||shift==='有休'||shift==='希望休';
+      const isWork = shift!=='公休'&&shift!=='有休'&&shift!=='希望休'&&shift!=='未定';
       work += isWork ? 1 : 0;
       off  += isOff  ? 1 : 0;
       const p = PATTERNS.find(x=>x.name===shift);
@@ -1738,16 +1743,21 @@ function renderMainShiftTable() {
 
   let tfoot = '<tfoot>';
   // 宿直 row
+  const REST_FOR_WARN = ['公休','有休','希望休'];
   tfoot += '<tr class="shukucho-row"><td class="staff-col">宿直</td>';
   for (let d=1; d<=days; d++) {
     const key = `${year}-${month}-${d}`;
     const val = shukuchoData[key] || '';
+    // 宿直担当者が休みかチェック
+    const warnShift = val ? (shiftData[`${year}-${month}-${d}-${val}`] || '') : '';
+    const isWarn = val && REST_FOR_WARN.includes(warnShift);
+    const warnTitle = isWarn ? ` title="⚠️ ${warnShift}のため宿直不可の可能性"` : '';
     let opts = `<option value="" ${val===''?'selected':''}>—</option>`;
     SHUKUCHO_MASTERS.forEach(id => {
       const s = STAFF.find(x=>x.id===id);
       if (s) opts += `<option value="${id}" ${val===id?'selected':''}>${s.name}</option>`;
     });
-    tfoot += `<td class="${d===_todayD?'today-col':''}"><select class="shukucho-select" onchange="setShukucho('${key}',this.value)">${opts}</select></td>`;
+    tfoot += `<td class="${d===_todayD?'today-col':''}${isWarn?' shukucho-warn':''}"${warnTitle}><select class="shukucho-select${isWarn?' shukucho-warn':''}" onchange="setShukucho('${key}',this.value)">${opts}</select>${isWarn?'<span style="font-size:9px;display:block;color:#856404;font-weight:700;">⚠️'+warnShift+'</span>':''}</td>`;
   }
   tfoot += '<td colspan="2"></td></tr>';
   // 勤務人数 row
@@ -1755,7 +1765,7 @@ function renderMainShiftTable() {
   for (let d=1; d<=days; d++) {
     const count = orderedStaff.filter(s => {
       const k = `${year}-${month}-${d}-${s.id}`;
-      return shiftData[k] && !['公休','有休','特休','希望休','未定'].includes(shiftData[k]);
+      return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
     }).length;
     tfoot += `<td class="${d===_todayD?'today-col':''}">${count}</td>`;
   }
@@ -1829,9 +1839,9 @@ function countUsedLeave(staffId, fiscalYear) {
   return count;
 }
 // 年度内の全休日カウント（公休＋有休＋希望休）
-const REST_DAY_SHIFTS = ['公休', '有休', '特休', '希望休'];
+const REST_DAY_SHIFTS = ['公休', '有休', '希望休'];
 function countRestDays(staffId, fiscalYear) {
-  const counts = { '公休': 0, '有休': 0, '特休': 0, '希望休': 0, total: 0 };
+  const counts = { '公休': 0, '有休': 0, '希望休': 0, total: 0 };
   for (const [key, val] of Object.entries(shiftData)) {
     if (!REST_DAY_SHIFTS.includes(val)) continue;
     const parts = key.split('-');
@@ -1907,6 +1917,49 @@ function applyPaint(key) {
   updateSaveButton();
   updateTableTotals();
   updateStaffRowTotals(parts[3]);
+
+  // 宿直×休み警告チェック：この日にこのスタッフが宿直担当かつ休みになった場合
+  const REST_FOR_WARN = ['公休','有休','希望休'];
+  const dayKey = `${parts[0]}-${parts[1]}-${parts[2]}`;
+  if (shukuchoData[dayKey] === parts[3]) {
+    if (REST_FOR_WARN.includes(newShift)) {
+      showToast(`⚠️ ${s ? s.name : ''}さんは${parseInt(parts[2])}日に宿直が設定されています。「${newShift}」に変更しても大丈夫ですか？`);
+    }
+    // 宿直セルの警告スタイルを即時更新（テーブル全体再描画は避ける）
+    updateShukuchoCellWarn(dayKey, parts[3], newShift);
+  }
+}
+
+// 宿直セル1つの警告スタイルを更新
+function updateShukuchoCellWarn(dayKey, staffId, newShift) {
+  const REST_FOR_WARN = ['公休','有休','希望休'];
+  const isWarn = REST_FOR_WARN.includes(newShift);
+  // data-key属性がないので、宿直行のセルをインデックスで特定
+  const shukuchoRow = document.querySelector('.shukucho-row');
+  if (!shukuchoRow) return;
+  const parts = dayKey.split('-');
+  const d = parseInt(parts[2]);
+  const cells = shukuchoRow.querySelectorAll('td');
+  // 1列目はラベル列なのでd番目のセル（インデックスd）
+  const cell = cells[d];
+  if (!cell) return;
+  if (isWarn) {
+    cell.classList.add('shukucho-warn');
+    const warnSpan = cell.querySelector('.shukucho-warn-label');
+    if (!warnSpan) {
+      const span = document.createElement('span');
+      span.className = 'shukucho-warn-label';
+      span.style.cssText = 'font-size:9px;display:block;color:#856404;font-weight:700;';
+      span.textContent = `⚠️${newShift}`;
+      cell.appendChild(span);
+    } else {
+      warnSpan.textContent = `⚠️${newShift}`;
+    }
+  } else {
+    cell.classList.remove('shukucho-warn');
+    const warnSpan = cell.querySelector('.shukucho-warn-label');
+    if (warnSpan) warnSpan.remove();
+  }
 }
 
 // 未保存バー・保存ボタンの状態更新
@@ -2054,7 +2107,7 @@ function updateTableTotals() {
     for (let d=1; d<=days; d++) {
       const count = dispStaff.filter(s => {
         const k = `${year}-${month}-${d}-${s.id}`;
-        return shiftData[k] && !['公休','有休','特休','希望休','未定'].includes(shiftData[k]);
+        return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
       }).length;
       const cell = tfoot.cells[d];
       if (cell) cell.textContent = count;
@@ -2071,8 +2124,8 @@ function updateStaffRowTotals(staffId) {
   let work = 0, off = 0;
   for (let d = 1; d <= days; d++) {
     const sh = shiftData[`${year}-${month}-${d}-${staffId}`] || '未定';
-    if (sh !== '公休' && sh !== '有休' && sh !== '特休' && sh !== '希望休' && sh !== '未定') work++;
-    if (sh === '公休' || sh === '有休' || sh === '特休' || sh === '希望休') off++;
+    if (sh !== '公休' && sh !== '有休' && sh !== '希望休' && sh !== '未定') work++;
+    if (sh === '公休' || sh === '有休' || sh === '希望休') off++;
   }
   const workCell = row.cells[days + 1];
   const offCell  = row.cells[days + 2];
@@ -2084,6 +2137,18 @@ function setShukucho(key, staffId) {
   if (staffId) shukuchoData[key] = staffId;
   else delete shukuchoData[key];
   fbSave('/shukuchoData', shukuchoData);
+  // 宿直×休み警告チェック
+  if (staffId) {
+    const parts = key.split('-'); // "year-month-day"
+    const shiftKey = `${parts[0]}-${parts[1]}-${parts[2]}-${staffId}`;
+    const shift = shiftData[shiftKey] || '';
+    const REST = ['公休','有休','希望休'];
+    if (REST.includes(shift)) {
+      const s = STAFF.find(x => x.id === staffId);
+      showToast(`⚠️ ${s ? s.name : ''} さんは${parts[2]}日が「${shift}」です。宿直に割り当てても大丈夫ですか？`);
+    }
+  }
+  renderMainShiftTable(); // 宿直行の警告表示を更新
 }
 
 // ===== STAFF ORDER MODAL =====
@@ -2188,11 +2253,16 @@ function renderAllShiftTable() {
       }
     });
     const usedPatterns = PATTERNS.filter(p => usedNames.has(p.name));
-    legend.innerHTML = usedPatterns.map(p =>
-      `<span style="display:flex;align-items:center;gap:4px;font-size:12px;">
+    legend.innerHTML = usedPatterns.map(p => {
+      const timeStr = p.allday ? '終日' : `${p.start}〜${p.end}`;
+      return `<span style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"
+        title="${timeStr}"
+        onclick="showShiftTimePopup(this,'${timeStr}')"
+        onmouseenter="showShiftTimeTooltip(this,'${timeStr}')"
+        onmouseleave="hideShiftTimeTooltip()">
         <span class="shift-badge" style="background:${p.bg};color:${p.fg}">${p.name}</span>
-        ${p.allday ? '終日' : p.start+'〜'+p.end}
-      </span>`).join('');
+      </span>`;
+    }).join('');
   }
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
@@ -2230,14 +2300,18 @@ function renderAllShiftTable() {
     let work=0, off=0;
     for (let d=1; d<=days; d++) {
       const shift = shiftData[`${year}-${month}-${d}-${s.id}`] || '未定';
-      const isOff  = ['公休','有休','特休','希望休'].includes(shift);
+      const isOff  = ['公休','有休','希望休'].includes(shift);
       const isWork = !isOff && shift!=='未定';
       work += isWork ? 1 : 0;
       off  += isOff  ? 1 : 0;
       const p = PATTERNS.find(x=>x.name===shift);
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
+      const timeStr = p ? (p.allday ? '終日' : `${p.start}〜${p.end}`) : '';
+      const timeAttr = timeStr ? ` title="${shift} ${timeStr}"` : ` title="${shift}"`;
+      const timeClick = timeStr ? ` onclick="showShiftTimePopup(this,'${shift} ${timeStr}')"` : '';
+      const timeHover = timeStr ? ` onmouseenter="showShiftTimeTooltip(this,'${timeStr}')" onmouseleave="hideShiftTimeTooltip()"` : '';
       tbody += `<td class="shift-cell${d===_tD?' today-col':''}" style="cursor:default;">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${shift}">${shift.slice(0,2)}</span>
+        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${shift.slice(0,2)}</span>
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${work}</td>`;
@@ -2259,7 +2333,7 @@ function renderAllShiftTable() {
   for (let d=1; d<=days; d++) {
     const count = activeStaff.filter(s => {
       const k = `${year}-${month}-${d}-${s.id}`;
-      return shiftData[k] && !['公休','有休','特休','希望休','未定'].includes(shiftData[k]);
+      return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
     }).length;
     tfoot += `<td class="${d===_tD?'today-col':''}">${count}</td>`;
   }
@@ -2819,7 +2893,7 @@ const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '通し', '夜勤', 
 function renderReport() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
-  const REST_SHIFTS = ['公休','有休','特休','希望休','未定'];
+  const REST_SHIFTS = ['公休','有休','希望休','未定'];
 
   // ── 区分列の決定 ──────────────────────────────────────
   // PATTERNSに設定されている区分を固定順序で列化（シフト入力実績に関係なく）
@@ -2827,24 +2901,14 @@ function renderReport() {
   const activeCats  = REPORT_CATEGORIES.filter(c => patternCats.has(c));
 
   // ── 統計サマリー ──────────────────────────────────────
-  let totalWork=0, totalOff=0, totalShukucho=0, totalPaidLeave=0;
-  getOrderedStaff().forEach(s => {
-    for (let d=1; d<=days; d++) {
-      const sh = shiftData[`${year}-${month}-${d}-${s.id}`];
-      if (!sh || sh==='未定') continue;
-      if (!REST_SHIFTS.includes(sh)) totalWork++;
-      if (sh==='公休' || sh==='希望休') totalOff++;
-      if (sh==='有休') totalPaidLeave++;
-    }
-    for (let d=1; d<=days; d++) {
-      if (shukuchoData[`${year}-${month}-${d}`] === s.id) totalShukucho++;
-    }
-  });
+  const activeStaffAll  = STAFF.filter(s => s.active);
+  const totalActive     = activeStaffAll.length;
+  const totalSeishain   = activeStaffAll.filter(s => s.type === '正社員').length;
+  const totalPart       = activeStaffAll.filter(s => s.type !== '正社員').length;
   document.getElementById('report-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">総勤務日数（延べ）</div><div class="stat-value">${totalWork}<span class="stat-unit">日</span></div></div>
-    <div class="stat-card" style="border-left-color:#E53935"><div class="stat-label">有休取得数</div><div class="stat-value">${totalPaidLeave}<span class="stat-unit">日</span></div></div>
-    <div class="stat-card" style="border-left-color:#4A235A"><div class="stat-label">宿直回数（延べ）</div><div class="stat-value">${totalShukucho}<span class="stat-unit">回</span></div></div>
-    <div class="stat-card" style="border-left-color:#FF8F00"><div class="stat-label">公休数（延べ）</div><div class="stat-value">${totalOff}<span class="stat-unit">日</span></div></div>`;
+    <div class="stat-card"><div class="stat-label">在籍スタッフ数</div><div class="stat-value">${totalActive}<span class="stat-unit">名</span></div></div>
+    <div class="stat-card" style="border-left-color:#1565C0"><div class="stat-label">正社員数</div><div class="stat-value">${totalSeishain}<span class="stat-unit">名</span></div></div>
+    <div class="stat-card" style="border-left-color:#FF8F00"><div class="stat-label">パート・アルバイト数</div><div class="stat-value">${totalPart}<span class="stat-unit">名</span></div></div>`;
 
   // ── テーブルヘッダー ────────────────────────────────────
   // 区分ヘッダーに色付きバッジ
@@ -3036,7 +3100,7 @@ function isProportionalLeave(staff) {
 }
 // ---- 過去期間の実勤務日数（shiftDataより）----
 function countActualWorkDays(staffId, fromDate, toDate) {
-  const offShifts = ['公休', '有休', '特休', '希望休', '未定'];
+  const offShifts = ['公休', '有休', '希望休', '未定'];
   let count = 0, hasData = false;
   for (const [key, val] of Object.entries(shiftData)) {
     const parts = key.split('-');
@@ -3289,7 +3353,7 @@ function renderPaidLeavePage() {
 function exportReportCSV() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
-  const REST_SHIFTS_CSV = ['公休','有休','特休','希望休','未定'];
+  const REST_SHIFTS_CSV = ['公休','有休','希望休','未定'];
 
   // PATTERNSベースの区分列（renderReportと同じロジック）
   const patternCats = new Set(PATTERNS.map(p => p.category).filter(Boolean));
@@ -3850,6 +3914,37 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ===== シフト時間ツールチップ（全体シフト用）=====
+let _shiftTooltipTimer = null;
+function showShiftTimeTooltip(el, text) {
+  // タッチデバイスでは無効（clickで表示）
+  if (window.matchMedia('(hover:none)').matches) return;
+  const tip = document.getElementById('shift-time-tooltip');
+  if (!tip) return;
+  tip.textContent = text;
+  tip.style.display = 'block';
+  const rect = el.getBoundingClientRect();
+  tip.style.left = (rect.left + rect.width/2 - tip.offsetWidth/2) + 'px';
+  tip.style.top  = (rect.top - tip.offsetHeight - 6) + 'px';
+}
+function hideShiftTimeTooltip() {
+  const tip = document.getElementById('shift-time-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+let _shiftPopupTimer = null;
+function showShiftTimePopup(el, text) {
+  // スマホ用：タップで時間を一時表示
+  const tip = document.getElementById('shift-time-tooltip');
+  if (!tip) return;
+  tip.textContent = text;
+  tip.style.display = 'block';
+  const rect = el.getBoundingClientRect();
+  tip.style.left = Math.min(rect.left + rect.width/2 - 60, window.innerWidth - 130) + 'px';
+  tip.style.top  = (rect.top - 36) + 'px';
+  clearTimeout(_shiftPopupTimer);
+  _shiftPopupTimer = setTimeout(() => { tip.style.display = 'none'; }, 2000);
 }
 </script>
 </body>
