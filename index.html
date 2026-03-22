@@ -2482,14 +2482,14 @@ function renderAllShiftTable() {
   const legend = document.getElementById('all-shift-legend');
   if (legend) {
     const { year, month } = currentMonth;
-    const usedNames = new Set();
+    const usedIds = new Set();
     getOrderedStaff().forEach(s => {
       for (let d=1; d<=daysInMonth(year,month); d++) {
         const sh = shiftData[`${year}-${month}-${d}-${s.id}`];
-        if (sh) usedNames.add(sh);
+        if (sh) usedIds.add(sh);
       }
     });
-    const usedPatterns = PATTERNS.filter(p => usedNames.has(p.name));
+    const usedPatterns = PATTERNS.filter(p => usedIds.has(p.id));
     legend.innerHTML = usedPatterns.map(p => {
       const timeStr = p.allday ? '終日' : `${p.start}〜${p.end}`;
       return `<span style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"
