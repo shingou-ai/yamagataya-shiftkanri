@@ -1087,38 +1087,38 @@ STAFF.forEach(s => {
 
 let PATTERNS = [
   // ── 全部署共通 ──
-  { name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  dept:'' },
-  { name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  dept:'' },
-  { name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  dept:'' },
+  { name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  dept:'', category:'' },
+  { name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  dept:'', category:'' },
+  { name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  dept:'', category:'' },
   // ── フロント ──
-  { name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント' },
-  { name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント' },
-  { name:'フB番',    start:'09:00', end:'20:00', hours:9,  breakMinutes:120,breaks:[], bg:'#FFDEAD', fg:'#6b3c00', allday:false, dept:'フロント' },
-  { name:'フ遅番',   start:'13:00', end:'22:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFD580', fg:'#5c3200', allday:false, dept:'フロント' },
-  { name:'フ超遅',   start:'15:00', end:'00:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFC966', fg:'#4d2800', allday:false, dept:'フロント' },
-  { name:'フ中抜け', start:'08:00', end:'21:00', hours:9,  breakMinutes:240,breaks:[], bg:'#FFECB3', fg:'#6b4c00', allday:false, dept:'フロント' },
+  { name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
+  { name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
+  { name:'フB番',    start:'09:00', end:'20:00', hours:9,  breakMinutes:120,breaks:[], bg:'#FFDEAD', fg:'#6b3c00', allday:false, dept:'フロント', category:'通し' },
+  { name:'フ遅番',   start:'13:00', end:'22:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFD580', fg:'#5c3200', allday:false, dept:'フロント', category:'遅番' },
+  { name:'フ超遅',   start:'15:00', end:'00:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFC966', fg:'#4d2800', allday:false, dept:'フロント', category:'遅番' },
+  { name:'フ中抜け', start:'08:00', end:'21:00', hours:9,  breakMinutes:240,breaks:[], bg:'#FFECB3', fg:'#6b4c00', allday:false, dept:'フロント', category:'中抜け' },
   // ── ルーム ──
-  { name:'ル超早',   start:'05:30', end:'14:30', hours:8,  breakMinutes:60, breaks:[], bg:'#DBEAFE', fg:'#1e3a8a', allday:false, dept:'ルーム' },
-  { name:'ル早番',   start:'06:30', end:'15:30', hours:8,  breakMinutes:60, breaks:[], bg:'#BFDBFE', fg:'#1e40af', allday:false, dept:'ルーム' },
-  { name:'ル遅番',   start:'13:30', end:'22:00', hours:8,  breakMinutes:30, breaks:[], bg:'#93C5FD', fg:'#1e3a8a', allday:false, dept:'ルーム' },
-  { name:'ル中抜け', start:'06:30', end:'21:00', hours:9,  breakMinutes:270,breaks:[], bg:'#BAE6FD', fg:'#0c4a6e', allday:false, dept:'ルーム' },
-  { name:'ル通し',   start:'10:30', end:'19:30', hours:8,  breakMinutes:60, breaks:[], bg:'#7DD3FC', fg:'#0369a1', allday:false, dept:'ルーム' },
+  { name:'ル超早',   start:'05:30', end:'14:30', hours:8,  breakMinutes:60, breaks:[], bg:'#DBEAFE', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'早番' },
+  { name:'ル早番',   start:'06:30', end:'15:30', hours:8,  breakMinutes:60, breaks:[], bg:'#BFDBFE', fg:'#1e40af', allday:false, dept:'ルーム', category:'早番' },
+  { name:'ル遅番',   start:'13:30', end:'22:00', hours:8,  breakMinutes:30, breaks:[], bg:'#93C5FD', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'遅番' },
+  { name:'ル中抜け', start:'06:30', end:'21:00', hours:9,  breakMinutes:270,breaks:[], bg:'#BAE6FD', fg:'#0c4a6e', allday:false, dept:'ルーム', category:'中抜け' },
+  { name:'ル通し',   start:'10:30', end:'19:30', hours:8,  breakMinutes:60, breaks:[], bg:'#7DD3FC', fg:'#0369a1', allday:false, dept:'ルーム', category:'通し' },
   // ── 部屋清掃 ──
-  { name:'掃8時',    start:'08:00', end:'13:00', hours:5,  breakMinutes:0,  breaks:[], bg:'#D1FAE5', fg:'#065f46', allday:false, dept:'部屋清掃' },
-  { name:'掃9時',    start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#A7F3D0', fg:'#064e3b', allday:false, dept:'部屋清掃' },
+  { name:'掃8時',    start:'08:00', end:'13:00', hours:5,  breakMinutes:0,  breaks:[], bg:'#D1FAE5', fg:'#065f46', allday:false, dept:'部屋清掃', category:'早番' },
+  { name:'掃9時',    start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#A7F3D0', fg:'#064e3b', allday:false, dept:'部屋清掃', category:'早番' },
   // ── 板場 ──
-  { name:'板早番',   start:'06:00', end:'15:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFE4E1', fg:'#991b1b', allday:false, dept:'板場' },
-  { name:'板A番',    start:'08:00', end:'19:30', hours:10, breakMinutes:90, breaks:[], bg:'#FECACA', fg:'#7f1d1d', allday:false, dept:'板場' },
+  { name:'板早番',   start:'06:00', end:'15:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFE4E1', fg:'#991b1b', allday:false, dept:'板場', category:'早番' },
+  { name:'板A番',    start:'08:00', end:'19:30', hours:10, breakMinutes:90, breaks:[], bg:'#FECACA', fg:'#7f1d1d', allday:false, dept:'板場', category:'通し' },
   // ── 調理朝 ──
-  { name:'調パ朝番', start:'05:00', end:'11:00', hours:6,  breakMinutes:0,  breaks:[], bg:'#F3E8FF', fg:'#581c87', allday:false, dept:'調理朝' },
-  { name:'調パ午前', start:'08:00', end:'12:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#E9D5FF', fg:'#4c1d95', allday:false, dept:'調理朝' },
-  { name:'調パ午後', start:'15:30', end:'21:30', hours:6,  breakMinutes:0,  breaks:[], bg:'#DDD6FE', fg:'#3b0764', allday:false, dept:'調理朝' },
+  { name:'調パ朝番', start:'05:00', end:'11:00', hours:6,  breakMinutes:0,  breaks:[], bg:'#F3E8FF', fg:'#581c87', allday:false, dept:'調理朝', category:'早番' },
+  { name:'調パ午前', start:'08:00', end:'12:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#E9D5FF', fg:'#4c1d95', allday:false, dept:'調理朝', category:'早番' },
+  { name:'調パ午後', start:'15:30', end:'21:30', hours:6,  breakMinutes:0,  breaks:[], bg:'#DDD6FE', fg:'#3b0764', allday:false, dept:'調理朝', category:'遅番' },
   // ── 共用 ──
-  { name:'共用中抜け',start:'09:00', end:'22:00', hours:9,  breakMinutes:240,breaks:[], bg:'#E2E8F0', fg:'#1e293b', allday:false, dept:'共用' },
-  { name:'共用午前', start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#CBD5E1', fg:'#1e293b', allday:false, dept:'共用' },
-  { name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用' },
+  { name:'共用中抜け',start:'09:00', end:'22:00', hours:9,  breakMinutes:240,breaks:[], bg:'#E2E8F0', fg:'#1e293b', allday:false, dept:'共用', category:'中抜け' },
+  { name:'共用午前', start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#CBD5E1', fg:'#1e293b', allday:false, dept:'共用', category:'早番' },
+  { name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用', category:'遅番' },
   // ── 夜警 ──
-  { name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警' },
+  { name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警', category:'夜勤' },
 ];
 
 // 宿直担当マスタ（スタッフID）
@@ -1415,9 +1415,27 @@ async function fbLoad() {
     // 勤務パターンをFirebaseから復元
     if (d.patterns && Array.isArray(d.patterns) && d.patterns.length > 0) {
       PATTERNS.splice(0, PATTERNS.length, ...d.patterns);
-      // 旧区分「夜警」→「その他」に自動移行
+      // カテゴリ未設定パターンの自動推定 + 旧区分「夜警」→「その他」移行
       let migrated = false;
-      PATTERNS.forEach(p => { if (p.category === '夜警') { p.category = 'その他'; migrated = true; } });
+      PATTERNS.forEach(p => {
+        if (p.category === '夜警') { p.category = 'その他'; migrated = true; }
+        // category が未設定（undefined / '' / null）の勤務パターン → 名前・時間から自動推定
+        if (!p.category && !p.allday && p.start) {
+          const nm = p.name || '';
+          if (nm.includes('中抜け'))       { p.category = '中抜け'; migrated = true; }
+          else if (nm.includes('通し'))    { p.category = '通し';   migrated = true; }
+          else if (nm.includes('夜'))      { p.category = '夜勤';   migrated = true; }
+          else if (nm.includes('早'))      { p.category = '早番';   migrated = true; }
+          else if (nm.includes('遅') || nm.includes('超遅')) { p.category = '遅番'; migrated = true; }
+          else {
+            // 名前で判定できない場合は開始時刻で推定
+            const h = parseInt(p.start.split(':')[0], 10);
+            if (h < 12)       { p.category = '早番';   migrated = true; }
+            else if (h >= 17) { p.category = '夜勤';   migrated = true; }
+            else              { p.category = '遅番';   migrated = true; }
+          }
+        }
+      });
       if (migrated) fbSave('/patterns', PATTERNS);
     }
     // 宿直担当マスタをFirebaseから復元
