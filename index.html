@@ -1088,39 +1088,59 @@ STAFF.forEach(s => {
 
 let PATTERNS = [
   // ── 全部署共通 ──
-  { name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  dept:'', category:'' },
-  { name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  dept:'', category:'' },
-  { name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  dept:'', category:'' },
+  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  dept:'', category:'' },
+  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  dept:'', category:'' },
+  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  dept:'', category:'' },
   // ── フロント ──
-  { name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
-  { name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
-  { name:'フB番',    start:'09:00', end:'20:00', hours:9,  breakMinutes:120,breaks:[], bg:'#FFDEAD', fg:'#6b3c00', allday:false, dept:'フロント', category:'通し' },
-  { name:'フ遅番',   start:'13:00', end:'22:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFD580', fg:'#5c3200', allday:false, dept:'フロント', category:'遅番' },
-  { name:'フ超遅',   start:'15:00', end:'00:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFC966', fg:'#4d2800', allday:false, dept:'フロント', category:'遅番' },
-  { name:'フ中抜け', start:'08:00', end:'21:00', hours:9,  breakMinutes:240,breaks:[], bg:'#FFECB3', fg:'#6b4c00', allday:false, dept:'フロント', category:'中抜け' },
+  { id:'P004', name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
+  { id:'P005', name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
+  { id:'P006', name:'フB番',    start:'09:00', end:'20:00', hours:9,  breakMinutes:120,breaks:[], bg:'#FFDEAD', fg:'#6b3c00', allday:false, dept:'フロント', category:'通し' },
+  { id:'P007', name:'フ遅番',   start:'13:00', end:'22:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFD580', fg:'#5c3200', allday:false, dept:'フロント', category:'遅番' },
+  { id:'P008', name:'フ超遅',   start:'15:00', end:'00:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFC966', fg:'#4d2800', allday:false, dept:'フロント', category:'遅番' },
+  { id:'P009', name:'フ中抜け', start:'08:00', end:'21:00', hours:9,  breakMinutes:240,breaks:[], bg:'#FFECB3', fg:'#6b4c00', allday:false, dept:'フロント', category:'中抜け' },
   // ── ルーム ──
-  { name:'ル超早',   start:'05:30', end:'14:30', hours:8,  breakMinutes:60, breaks:[], bg:'#DBEAFE', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'早番' },
-  { name:'ル早番',   start:'06:30', end:'15:30', hours:8,  breakMinutes:60, breaks:[], bg:'#BFDBFE', fg:'#1e40af', allday:false, dept:'ルーム', category:'早番' },
-  { name:'ル遅番',   start:'13:30', end:'22:00', hours:8,  breakMinutes:30, breaks:[], bg:'#93C5FD', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'遅番' },
-  { name:'ル中抜け', start:'06:30', end:'21:00', hours:9,  breakMinutes:270,breaks:[], bg:'#BAE6FD', fg:'#0c4a6e', allday:false, dept:'ルーム', category:'中抜け' },
-  { name:'ル通し',   start:'10:30', end:'19:30', hours:8,  breakMinutes:60, breaks:[], bg:'#7DD3FC', fg:'#0369a1', allday:false, dept:'ルーム', category:'通し' },
+  { id:'P010', name:'ル超早',   start:'05:30', end:'14:30', hours:8,  breakMinutes:60, breaks:[], bg:'#DBEAFE', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'早番' },
+  { id:'P011', name:'ル早番',   start:'06:30', end:'15:30', hours:8,  breakMinutes:60, breaks:[], bg:'#BFDBFE', fg:'#1e40af', allday:false, dept:'ルーム', category:'早番' },
+  { id:'P012', name:'ル遅番',   start:'13:30', end:'22:00', hours:8,  breakMinutes:30, breaks:[], bg:'#93C5FD', fg:'#1e3a8a', allday:false, dept:'ルーム', category:'遅番' },
+  { id:'P013', name:'ル中抜け', start:'06:30', end:'21:00', hours:9,  breakMinutes:270,breaks:[], bg:'#BAE6FD', fg:'#0c4a6e', allday:false, dept:'ルーム', category:'中抜け' },
+  { id:'P014', name:'ル通し',   start:'10:30', end:'19:30', hours:8,  breakMinutes:60, breaks:[], bg:'#7DD3FC', fg:'#0369a1', allday:false, dept:'ルーム', category:'通し' },
   // ── 部屋清掃 ──
-  { name:'掃8時',    start:'08:00', end:'13:00', hours:5,  breakMinutes:0,  breaks:[], bg:'#D1FAE5', fg:'#065f46', allday:false, dept:'部屋清掃', category:'早番' },
-  { name:'掃9時',    start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#A7F3D0', fg:'#064e3b', allday:false, dept:'部屋清掃', category:'早番' },
+  { id:'P015', name:'掃8時',    start:'08:00', end:'13:00', hours:5,  breakMinutes:0,  breaks:[], bg:'#D1FAE5', fg:'#065f46', allday:false, dept:'部屋清掃', category:'早番' },
+  { id:'P016', name:'掃9時',    start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#A7F3D0', fg:'#064e3b', allday:false, dept:'部屋清掃', category:'早番' },
   // ── 板場 ──
-  { name:'板早番',   start:'06:00', end:'15:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFE4E1', fg:'#991b1b', allday:false, dept:'板場', category:'早番' },
-  { name:'板A番',    start:'08:00', end:'19:30', hours:10, breakMinutes:90, breaks:[], bg:'#FECACA', fg:'#7f1d1d', allday:false, dept:'板場', category:'通し' },
+  { id:'P017', name:'板早番',   start:'06:00', end:'15:00', hours:8,  breakMinutes:60, breaks:[], bg:'#FFE4E1', fg:'#991b1b', allday:false, dept:'板場', category:'早番' },
+  { id:'P018', name:'板A番',    start:'08:00', end:'19:30', hours:10, breakMinutes:90, breaks:[], bg:'#FECACA', fg:'#7f1d1d', allday:false, dept:'板場', category:'通し' },
   // ── 調理朝 ──
-  { name:'調パ朝番', start:'05:00', end:'11:00', hours:6,  breakMinutes:0,  breaks:[], bg:'#F3E8FF', fg:'#581c87', allday:false, dept:'調理朝', category:'早番' },
-  { name:'調パ午前', start:'08:00', end:'12:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#E9D5FF', fg:'#4c1d95', allday:false, dept:'調理朝', category:'早番' },
-  { name:'調パ午後', start:'15:30', end:'21:30', hours:6,  breakMinutes:0,  breaks:[], bg:'#DDD6FE', fg:'#3b0764', allday:false, dept:'調理朝', category:'遅番' },
+  { id:'P019', name:'調パ朝番', start:'05:00', end:'11:00', hours:6,  breakMinutes:0,  breaks:[], bg:'#F3E8FF', fg:'#581c87', allday:false, dept:'調理朝', category:'早番' },
+  { id:'P020', name:'調パ午前', start:'08:00', end:'12:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#E9D5FF', fg:'#4c1d95', allday:false, dept:'調理朝', category:'早番' },
+  { id:'P021', name:'調パ午後', start:'15:30', end:'21:30', hours:6,  breakMinutes:0,  breaks:[], bg:'#DDD6FE', fg:'#3b0764', allday:false, dept:'調理朝', category:'遅番' },
   // ── 共用 ──
-  { name:'共用中抜け',start:'09:00', end:'22:00', hours:9,  breakMinutes:240,breaks:[], bg:'#E2E8F0', fg:'#1e293b', allday:false, dept:'共用', category:'中抜け' },
-  { name:'共用午前', start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#CBD5E1', fg:'#1e293b', allday:false, dept:'共用', category:'早番' },
-  { name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用', category:'遅番' },
+  { id:'P022', name:'共用中抜け',start:'09:00', end:'22:00', hours:9,  breakMinutes:240,breaks:[], bg:'#E2E8F0', fg:'#1e293b', allday:false, dept:'共用', category:'中抜け' },
+  { id:'P023', name:'共用午前', start:'09:00', end:'13:00', hours:4,  breakMinutes:0,  breaks:[], bg:'#CBD5E1', fg:'#1e293b', allday:false, dept:'共用', category:'早番' },
+  { id:'P024', name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用', category:'遅番' },
   // ── 夜警 ──
-  { name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警', category:'夜勤' },
+  { id:'P025', name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警', category:'夜勤' },
 ];
+
+// ===== パターンID ヘルパー =====
+// IDでパターンを検索（高速キャッシュ付き）
+let _patCache = {};
+function _rebuildPatCache() { _patCache = {}; PATTERNS.forEach(p => { if (p.id) _patCache[p.id] = p; }); }
+function patById(id) { if (!id) return null; return _patCache[id] || PATTERNS.find(p => p.id === id) || null; }
+// IDからパターン名を取得（表示用）
+function patName(id) { if (!id) return '未定'; const p = patById(id); return p ? p.name : id; }
+// 休みパターンかどうか判定
+function isRestPat(id) { if (!id) return true; const p = patById(id); return p ? p.allday : false; }
+// 有休パターンIDを取得
+function getYukyuId()  { const p = PATTERNS.find(x => x.name === '有休'); return p ? p.id : null; }
+function getKoukyuId() { const p = PATTERNS.find(x => x.name === '公休'); return p ? p.id : null; }
+function getKibouId()  { const p = PATTERNS.find(x => x.name === '希望休'); return p ? p.id : null; }
+// 新規パターンID生成
+function generatePatId() {
+  let max = 0;
+  PATTERNS.forEach(p => { if (p.id) { const n = parseInt(p.id.replace(/\D/g, ''), 10); if (!isNaN(n) && n > max) max = n; } });
+  return 'P' + String(max + 1).padStart(3, '0');
+}
 
 // 宿直担当マスタ（スタッフID）
 let SHUKUCHO_MASTERS = ['A00005','A00006','A00007','A00008'];
@@ -1131,8 +1151,9 @@ let REQUESTS = [];
 
 // Shift data
 let shiftData = {};
-const SHIFT_POOL = ['早番','早番','遅番','遅番','夜勤','公休','公休'];
+const SHIFT_POOL_IDS = ['P004','P004','P007','P007','P025','P001','P001'];
 function initShiftData() {
+  _rebuildPatCache();
   const _initYear = new Date().getFullYear();
   for (let m = 1; m <= 12; m++) {
     const days = new Date(_initYear, m, 0).getDate();
@@ -1140,8 +1161,8 @@ function initShiftData() {
       for (let d = 1; d <= days; d++) {
         const _d = new Date(_initYear, m-1, d).getDay();
         shiftData[`${_initYear}-${m}-${d}-${s.id}`] =
-          (_d===0||_d===6) && Math.random()<0.5 ? '公休'
-          : SHIFT_POOL[Math.floor(Math.random()*SHIFT_POOL.length)];
+          (_d===0||_d===6) && Math.random()<0.5 ? getKoukyuId()
+          : SHIFT_POOL_IDS[Math.floor(Math.random()*SHIFT_POOL_IDS.length)];
       }
     });
   }
@@ -1416,11 +1437,14 @@ async function fbLoad() {
     // 勤務パターンをFirebaseから復元
     if (d.patterns && Array.isArray(d.patterns) && d.patterns.length > 0) {
       PATTERNS.splice(0, PATTERNS.length, ...d.patterns);
-      // カテゴリ未設定パターンの自動推定 + 旧区分「夜警」→「その他」移行
       let migrated = false;
+      // ID未設定パターンにIDを自動付与
+      PATTERNS.forEach(p => {
+        if (!p.id) { p.id = generatePatId(); migrated = true; }
+      });
+      // 旧区分「夜警」→「その他」移行 + カテゴリ自動推定
       PATTERNS.forEach(p => {
         if (p.category === '夜警') { p.category = 'その他'; migrated = true; }
-        // category が未設定（undefined / '' / null）の勤務パターン → 名前・時間から自動推定
         if (!p.category && !p.allday && p.start) {
           const nm = p.name || '';
           if (nm.includes('中抜け'))       { p.category = '中抜け'; migrated = true; }
@@ -1429,7 +1453,6 @@ async function fbLoad() {
           else if (nm.includes('早'))      { p.category = '早番';   migrated = true; }
           else if (nm.includes('遅') || nm.includes('超遅')) { p.category = '遅番'; migrated = true; }
           else {
-            // 名前で判定できない場合は開始時刻で推定
             const h = parseInt(p.start.split(':')[0], 10);
             if (h < 12)       { p.category = '早番';   migrated = true; }
             else if (h >= 17) { p.category = '夜勤';   migrated = true; }
@@ -1439,20 +1462,36 @@ async function fbLoad() {
       });
       if (migrated) fbSave('/patterns', PATTERNS);
     }
-    // シフトデータ内の旧パターン名を検出・警告（パターン名変更後の孤立データ）
+    _rebuildPatCache();
+    // ── shiftData 移行：パターン名 → パターンID ──
+    // 旧形式（名前で格納）を新形式（IDで格納）に変換
     {
-      const REST_NAMES = ['公休','有休','希望休','未定'];
-      const patNames = new Set(PATTERNS.map(p => p.name));
-      const orphans = {};
+      const nameToId = {};
+      PATTERNS.forEach(p => { nameToId[p.name] = p.id; });
+      let converted = 0;
       Object.keys(shiftData).forEach(key => {
         const v = shiftData[key];
-        if (v && !REST_NAMES.includes(v) && !patNames.has(v)) {
-          orphans[v] = (orphans[v] || 0) + 1;
-        }
+        if (!v) return;
+        // 既にIDとして有効なら変換不要
+        if (patById(v)) return;
+        // パターン名としてマッチすればIDに変換
+        if (nameToId[v]) { shiftData[key] = nameToId[v]; converted++; }
       });
-      if (Object.keys(orphans).length > 0) {
-        console.warn('⚠️ シフトデータに存在しないパターン名:', orphans);
+      if (converted > 0) {
+        console.log(`✅ シフトデータ ${converted}件をパターンID形式に変換しました`);
+        fbSave('/shiftData', shiftData);
       }
+    }
+    // 変更ログも名前→ID変換（from/to フィールド）
+    {
+      const nameToId = {};
+      PATTERNS.forEach(p => { nameToId[p.name] = p.id; });
+      let logMigrated = false;
+      shiftChangeLog.forEach(c => {
+        if (c.from && nameToId[c.from] && !patById(c.from)) { c.from = nameToId[c.from]; logMigrated = true; }
+        if (c.to && nameToId[c.to] && !patById(c.to)) { c.to = nameToId[c.to]; logMigrated = true; }
+      });
+      if (logMigrated) fbSave('/shiftChangeLog', shiftChangeLog);
     }
     // 宿直担当マスタをFirebaseから復元
     if (d.shukuchoMasters && Array.isArray(d.shukuchoMasters)) {
@@ -1795,11 +1834,11 @@ function buildPalette() {
   fixedEl.innerHTML = '';
   PATTERNS.filter(p => p.dept === '' || !p.dept).forEach(p => {
     const btn = document.createElement('button');
-    btn.className = 'palette-btn' + (selectedPalette===p.name ? ' selected' : '');
+    btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
     btn.style.background = p.bg;
     btn.style.color = p.fg;
     btn.textContent = p.name;
-    btn.onclick = () => selectPalette(p.name);
+    btn.onclick = () => selectPalette(p.id);
     fixedEl.appendChild(btn);
   });
 
@@ -1819,11 +1858,11 @@ function buildPalette() {
   if (paletteDeptTab) {
     PATTERNS.filter(p => p.dept === paletteDeptTab).forEach(p => {
       const btn = document.createElement('button');
-      btn.className = 'palette-btn' + (selectedPalette===p.name ? ' selected' : '');
+      btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
       btn.style.background = p.bg;
       btn.style.color = p.fg;
       btn.textContent = p.name + (p.allday ? '' : ` ${p.start}`);
-      btn.onclick = () => selectPalette(p.name);
+      btn.onclick = () => selectPalette(p.id);
       container.appendChild(btn);
     });
   } else {
@@ -1838,7 +1877,7 @@ function buildPalette() {
 
   const hint = document.getElementById('palette-hint');
   if (hint) {
-    if (selectedPalette) hint.textContent = `「${selectedPalette}」を選択中 — セルをクリック/ドラッグで入力`;
+    if (selectedPalette) hint.textContent = `「${patName(selectedPalette)}」を選択中 — セルをクリック/ドラッグで入力`;
     else hint.textContent = 'パターンを選択してください';
   }
 }
@@ -1897,18 +1936,19 @@ function renderMainShiftTable() {
     let work=0, off=0;
     for (let d=1; d<=days; d++) {
       const key = `${year}-${month}-${d}-${s.id}`;
-      const shift = shiftData[key] || '未定';
-      const isOff = shift==='公休'||shift==='有休'||shift==='希望休';
-      const isWork = shift!=='公休'&&shift!=='有休'&&shift!=='希望休'&&shift!=='未定';
+      const shiftId = shiftData[key] || '';
+      const p = patById(shiftId);
+      const sName = p ? p.name : (shiftId || '未定');
+      const isOff = p ? p.allday : false;
+      const isWork = shiftId && !isOff;
       work += isWork ? 1 : 0;
       off  += isOff  ? 1 : 0;
-      const p = PATTERNS.find(x=>x.name===shift);
       const bg = p ? p.bg : '#E9ECEF';
       const fg = p ? p.fg : '#6c757d';
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}"
         data-key="${key}"
         style="user-select:none;">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${shift}">${shift.slice(0,2)}</span>
+        <span class="shift-badge" style="background:${bg};color:${fg}" title="${sName}">${sName.slice(0,2)}</span>
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${work}</td>`;
@@ -1918,21 +1958,21 @@ function renderMainShiftTable() {
 
   let tfoot = '<tfoot>';
   // 宿直 row
-  const REST_FOR_WARN = ['公休','有休','希望休'];
   tfoot += '<tr class="shukucho-row"><td class="staff-col">宿直</td>';
   for (let d=1; d<=days; d++) {
     const key = `${year}-${month}-${d}`;
     const val = shukuchoData[key] || '';
     // 宿直担当者が休みかチェック
-    const warnShift = val ? (shiftData[`${year}-${month}-${d}-${val}`] || '') : '';
-    const isWarn = val && REST_FOR_WARN.includes(warnShift);
-    const warnTitle = isWarn ? ` title="⚠️ ${warnShift}のため宿直不可の可能性"` : '';
+    const warnShiftId = val ? (shiftData[`${year}-${month}-${d}-${val}`] || '') : '';
+    const isWarn = val && isRestPat(warnShiftId);
+    const warnName = isWarn ? patName(warnShiftId) : '';
+    const warnTitle = isWarn ? ` title="⚠️ ${warnName}のため宿直不可の可能性"` : '';
     let opts = `<option value="" ${val===''?'selected':''}>—</option>`;
     SHUKUCHO_MASTERS.forEach(id => {
       const s = STAFF.find(x=>x.id===id);
       if (s) opts += `<option value="${id}" ${val===id?'selected':''}>${s.name}</option>`;
     });
-    tfoot += `<td class="${d===_todayD?'today-col':''}${isWarn?' shukucho-warn':''}"${warnTitle}><select class="shukucho-select${isWarn?' shukucho-warn':''}" onchange="setShukucho('${key}',this.value)">${opts}</select>${isWarn?'<span style="font-size:9px;display:block;color:#856404;font-weight:700;">⚠️'+warnShift+'</span>':''}</td>`;
+    tfoot += `<td class="${d===_todayD?'today-col':''}${isWarn?' shukucho-warn':''}"${warnTitle}><select class="shukucho-select${isWarn?' shukucho-warn':''}" onchange="setShukucho('${key}',this.value)">${opts}</select>${isWarn?'<span style="font-size:9px;display:block;color:#856404;font-weight:700;">⚠️'+warnName+'</span>':''}</td>`;
   }
   tfoot += '<td colspan="2"></td></tr>';
   // 勤務人数 row
@@ -1940,7 +1980,8 @@ function renderMainShiftTable() {
   for (let d=1; d<=days; d++) {
     const count = orderedStaff.filter(s => {
       const k = `${year}-${month}-${d}-${s.id}`;
-      return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
+      const sid = shiftData[k];
+      return sid && !isRestPat(sid);
     }).length;
     tfoot += `<td class="${d===_todayD?'today-col':''}">${count}</td>`;
   }
@@ -2003,9 +2044,10 @@ document.addEventListener('mouseup', () => { mouseIsDown = false; paintLastKey =
 
 function getFiscalYear(year, month) { return month >= 4 ? year : year - 1; }
 function countUsedLeave(staffId, fiscalYear) {
+  const _yuId = getYukyuId();
   let count = 0;
   for (const [key, val] of Object.entries(shiftData)) {
-    if (val !== '有休') continue;
+    if (val !== _yuId) continue;
     const parts = key.split('-');
     const y = parseInt(parts[0]), m = parseInt(parts[1]), sid = parts[3];
     if (sid !== staffId) continue;
@@ -2014,16 +2056,18 @@ function countUsedLeave(staffId, fiscalYear) {
   return count;
 }
 // 年度内の全休日カウント（公休＋有休＋希望休）
-const REST_DAY_SHIFTS = ['公休', '有休', '希望休'];
 function countRestDays(staffId, fiscalYear) {
+  const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
+  const restIds = [_kouId, _yuId, _kiId].filter(Boolean);
   const counts = { '公休': 0, '有休': 0, '希望休': 0, total: 0 };
   for (const [key, val] of Object.entries(shiftData)) {
-    if (!REST_DAY_SHIFTS.includes(val)) continue;
+    if (!restIds.includes(val)) continue;
+    const pName = patName(val);
     const parts = key.split('-');
     const y = parseInt(parts[0]), m = parseInt(parts[1]), sid = parts[3];
     if (sid !== staffId) continue;
     if (getFiscalYear(y, m) === fiscalYear) {
-      counts[val] = (counts[val] || 0) + 1;
+      counts[pName] = (counts[pName] || 0) + 1;
       counts.total++;
     }
   }
@@ -2031,34 +2075,35 @@ function countRestDays(staffId, fiscalYear) {
 }
 
 function applyPaint(key) {
-  const currentShift = shiftData[key] || '未定';
-  const newShift = selectedPalette === null ? '未定' : selectedPalette;
-  if (currentShift === newShift) return;
+  const currentShiftId = shiftData[key] || '';
+  const newShiftId = selectedPalette === null ? '' : selectedPalette;
+  if (currentShiftId === newShiftId) return;
 
   // 初回変更時に元の値を記録（保存時の from として使用）
   if (!pendingShiftOriginal.hasOwnProperty(key)) {
-    pendingShiftOriginal[key] = currentShift;
+    pendingShiftOriginal[key] = currentShiftId;
   }
 
   // ローカルに反映（Firebase保存はしない）
-  if (newShift === '未定') delete shiftData[key]; else shiftData[key] = newShift;
+  if (!newShiftId) delete shiftData[key]; else shiftData[key] = newShiftId;
 
   // 元の値に戻った場合はpendingから除外
   const origVal = pendingShiftOriginal[key];
-  if (newShift === origVal || (newShift === '未定' && !origVal)) {
+  if (newShiftId === origVal || (!newShiftId && !origVal)) {
     delete pendingShiftData[key];
     delete pendingShiftOriginal[key];
   } else {
-    pendingShiftData[key] = newShift;
+    pendingShiftData[key] = newShiftId;
   }
 
   // セル表示更新（pending中はマーク付き）
   const cell = document.querySelector(`[data-key="${key}"]`);
+  const newName = patName(newShiftId);
   if (cell) {
-    const p = PATTERNS.find(x=>x.name===newShift);
+    const p = patById(newShiftId);
     const bg = p ? p.bg : '#E9ECEF';
     const fg = p ? p.fg : '#6c757d';
-    cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${newShift}">${newShift.slice(0,2)}</span>`;
+    cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${newName}">${newName.slice(0,2)}</span>`;
     if (pendingShiftData.hasOwnProperty(key)) {
       cell.classList.add('pending-cell');
     } else {
@@ -2069,9 +2114,10 @@ function applyPaint(key) {
   // 有休残をローカルのみ更新（保存時にFirebase反映）
   const parts = key.split('-');
   const s = STAFF.find(x => x.id === parts[3]);
+  const _yukyuId = getYukyuId();
   if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
-    const wasYukyu = currentShift === '有休';
-    const isYukyu  = newShift === '有休';
+    const wasYukyu = currentShiftId === _yukyuId;
+    const isYukyu  = newShiftId === _yukyuId;
     if (!wasYukyu && isYukyu) {
       s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 1);
       const hint = document.getElementById('palette-hint');
@@ -2081,7 +2127,7 @@ function applyPaint(key) {
       const hint = document.getElementById('palette-hint');
       if (hint) hint.textContent = `「${s.name}」有休残: ${s.paidLeaveBalance}日（+1日返却）※未保存`;
     }
-    if (newShift === '有休') {
+    if (newShiftId === _yukyuId) {
       const fy = getFiscalYear(parseInt(parts[0]), parseInt(parts[1]));
       const usedThisYear = countUsedLeave(parts[3], fy);
       const hint = document.getElementById('palette-hint');
@@ -2093,12 +2139,11 @@ function applyPaint(key) {
   updateTableTotals();
   updateStaffRowTotals(parts[3]);
 
-  // 宿直×休み警告チェック：この日にこのスタッフが宿直担当かつ休みになった場合
-  const REST_FOR_WARN = ['公休','有休','希望休'];
+  // 宿直×休み警告チェック
   const dayKey = `${parts[0]}-${parts[1]}-${parts[2]}`;
   if (shukuchoData[dayKey] === parts[3]) {
-    if (REST_FOR_WARN.includes(newShift)) {
-      showToast(`⚠️ ${s ? s.name : ''}さんは${parseInt(parts[2])}日に宿直が設定されています。「${newShift}」に変更しても大丈夫ですか？`);
+    if (isRestPat(newShiftId)) {
+      showToast(`⚠️ ${s ? s.name : ''}さんは${parseInt(parts[2])}日に宿直が設定されています。「${newName}」に変更しても大丈夫ですか？`);
     }
     // 宿直セルの警告スタイルを即時更新（テーブル全体再描画は避ける）
     updateShukuchoCellWarn(dayKey, parts[3], newShift);
@@ -2106,9 +2151,8 @@ function applyPaint(key) {
 }
 
 // 宿直セル1つの警告スタイルを更新
-function updateShukuchoCellWarn(dayKey, staffId, newShift) {
-  const REST_FOR_WARN = ['公休','有休','希望休'];
-  const isWarn = REST_FOR_WARN.includes(newShift);
+function updateShukuchoCellWarn(dayKey, staffId, newShiftId) {
+  const isWarn = isRestPat(newShiftId);
   // data-key属性がないので、宿直行のセルをインデックスで特定
   const shukuchoRow = document.querySelector('.shukucho-row');
   if (!shukuchoRow) return;
@@ -2160,13 +2204,13 @@ function saveShiftTable() {
 
   // 公開済みの月のみ変更ログを生成（未公開月は通知しない）
   if (isPublished) {
-    Object.entries(pendingShiftData).forEach(([key, newShift]) => {
-      const fromShift = pendingShiftOriginal[key] || '未定';
+    Object.entries(pendingShiftData).forEach(([key, newShiftId]) => {
+      const fromShiftId = pendingShiftOriginal[key] || '';
       const parts = key.split('-');
       shiftChangeLog.push({
         staffId: parts[3],
         year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]),
-        from: fromShift, to: newShift, at: Date.now()
+        from: fromShiftId, to: newShiftId, at: Date.now()
       });
     });
   }
@@ -2240,26 +2284,27 @@ function togglePublishMonth() {
 // 未保存の変更をすべて取り消す
 function discardShiftChanges() {
   if (Object.keys(pendingShiftData).length === 0) return;
+  const _yukyuId = getYukyuId();
   // paidLeaveBalance を元に戻す
-  Object.entries(pendingShiftOriginal).forEach(([key, origShift]) => {
-    const curShift = shiftData[key] || '未定';
-    if (origShift === curShift) return;
+  Object.entries(pendingShiftOriginal).forEach(([key, origShiftId]) => {
+    const curShiftId = shiftData[key] || '';
+    if (origShiftId === curShiftId) return;
     const parts = key.split('-');
     const s = STAFF.find(x => x.id === parts[3]);
     if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
-      const origYukyu = origShift === '有休';
-      const curYukyu  = curShift  === '有休';
-      if (!origYukyu && curYukyu)  s.paidLeaveBalance = s.paidLeaveBalance + 1; // 有休割当を取り消し
-      if (origYukyu  && !curYukyu) s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 1); // 有休取消を戻す
+      const origYukyu = origShiftId === _yukyuId;
+      const curYukyu  = curShiftId  === _yukyuId;
+      if (!origYukyu && curYukyu)  s.paidLeaveBalance = s.paidLeaveBalance + 1;
+      if (origYukyu  && !curYukyu) s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 1);
     }
     // shiftDataを元に戻す
-    if (!origShift || origShift === '未定') delete shiftData[key]; else shiftData[key] = origShift;
+    if (!origShiftId) delete shiftData[key]; else shiftData[key] = origShiftId;
     // セル表示を元に戻す
     const cell = document.querySelector(`[data-key="${key}"]`);
     if (cell) {
-      const p = PATTERNS.find(x => x.name === origShift);
+      const p = patById(origShiftId);
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
-      const disp = origShift && origShift !== '未定' ? origShift : '未定';
+      const disp = patName(origShiftId);
       cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${disp}">${disp.slice(0,2)}</span>`;
       cell.classList.remove('pending-cell');
     }
@@ -2282,7 +2327,8 @@ function updateTableTotals() {
     for (let d=1; d<=days; d++) {
       const count = dispStaff.filter(s => {
         const k = `${year}-${month}-${d}-${s.id}`;
-        return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
+        const sid = shiftData[k];
+        return sid && !isRestPat(sid);
       }).length;
       const cell = tfoot.cells[d];
       if (cell) cell.textContent = count;
@@ -2298,9 +2344,9 @@ function updateStaffRowTotals(staffId) {
   if (!row) return;
   let work = 0, off = 0;
   for (let d = 1; d <= days; d++) {
-    const sh = shiftData[`${year}-${month}-${d}-${staffId}`] || '未定';
-    if (sh !== '公休' && sh !== '有休' && sh !== '希望休' && sh !== '未定') work++;
-    if (sh === '公休' || sh === '有休' || sh === '希望休') off++;
+    const sid = shiftData[`${year}-${month}-${d}-${staffId}`] || '';
+    if (sid && !isRestPat(sid)) work++;
+    if (sid && isRestPat(sid)) off++;
   }
   const workCell = row.cells[days + 1];
   const offCell  = row.cells[days + 2];
@@ -2316,11 +2362,10 @@ function setShukucho(key, staffId) {
   if (staffId) {
     const parts = key.split('-'); // "year-month-day"
     const shiftKey = `${parts[0]}-${parts[1]}-${parts[2]}-${staffId}`;
-    const shift = shiftData[shiftKey] || '';
-    const REST = ['公休','有休','希望休'];
-    if (REST.includes(shift)) {
+    const shiftId = shiftData[shiftKey] || '';
+    if (shiftId && isRestPat(shiftId)) {
       const s = STAFF.find(x => x.id === staffId);
-      showToast(`⚠️ ${s ? s.name : ''} さんは${parts[2]}日が「${shift}」です。宿直に割り当てても大丈夫ですか？`);
+      showToast(`⚠️ ${s ? s.name : ''} さんは${parts[2]}日が「${patName(shiftId)}」です。宿直に割り当てても大丈夫ですか？`);
     }
   }
   renderMainShiftTable(); // 宿直行の警告表示を更新
@@ -2474,19 +2519,20 @@ function renderAllShiftTable() {
     </td>`;
     let work=0, off=0;
     for (let d=1; d<=days; d++) {
-      const shift = shiftData[`${year}-${month}-${d}-${s.id}`] || '未定';
-      const isOff  = ['公休','有休','希望休'].includes(shift);
-      const isWork = !isOff && shift!=='未定';
+      const shiftId = shiftData[`${year}-${month}-${d}-${s.id}`] || '';
+      const p = patById(shiftId);
+      const sName = p ? p.name : (shiftId || '未定');
+      const isOff  = p ? p.allday : false;
+      const isWork = shiftId && !isOff;
       work += isWork ? 1 : 0;
       off  += isOff  ? 1 : 0;
-      const p = PATTERNS.find(x=>x.name===shift);
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
       const timeStr = p ? (p.allday ? '終日' : `${p.start}〜${p.end}`) : '';
-      const timeAttr = timeStr ? ` title="${shift} ${timeStr}"` : ` title="${shift}"`;
-      const timeClick = timeStr ? ` onclick="showShiftTimePopup(this,'${shift} ${timeStr}')"` : '';
+      const timeAttr = timeStr ? ` title="${sName} ${timeStr}"` : ` title="${sName}"`;
+      const timeClick = timeStr ? ` onclick="showShiftTimePopup(this,'${sName} ${timeStr}')"` : '';
       const timeHover = timeStr ? ` onmouseenter="showShiftTimeTooltip(this,'${timeStr}')" onmouseleave="hideShiftTimeTooltip()"` : '';
       tbody += `<td class="shift-cell${d===_tD?' today-col':''}" style="cursor:default;">
-        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${shift.slice(0,2)}</span>
+        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${sName.slice(0,2)}</span>
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${work}</td>`;
@@ -2508,7 +2554,8 @@ function renderAllShiftTable() {
   for (let d=1; d<=days; d++) {
     const count = activeStaff.filter(s => {
       const k = `${year}-${month}-${d}-${s.id}`;
-      return shiftData[k] && !['公休','有休','希望休','未定'].includes(shiftData[k]);
+      const sid = shiftData[k];
+      return sid && !isRestPat(sid);
     }).length;
     tfoot += `<td class="${d===_tD?'today-col':''}">${count}</td>`;
   }
@@ -3028,23 +3075,15 @@ function savePattern() {
   data.hours = data.allday ? 0 : calcPatternHours(data.start, data.end, data.breakMinutes);
   if (!data.name) { showToast('パターン名を入力してください'); return; }
   if (idx < 0) {
+    data.id = generatePatId();
     PATTERNS.push(data);
     showToast(`「${data.name}」パターンを追加しました ✅`);
   } else {
-    const oldName = PATTERNS[idx].name;
+    data.id = PATTERNS[idx].id; // 既存IDを引き継ぐ
     PATTERNS[idx] = data;
-    // パターン名が変更された場合、シフトデータの旧名を新名に一括更新
-    if (oldName !== data.name) {
-      let renamed = 0;
-      Object.keys(shiftData).forEach(key => {
-        if (shiftData[key] === oldName) { shiftData[key] = data.name; renamed++; }
-      });
-      if (renamed > 0) fbSave('/shiftData', shiftData);
-      showToast(`「${oldName}」→「${data.name}」に更新しました（シフト${renamed}件も変更） ✅`);
-    } else {
-      showToast(`「${data.name}」パターンを更新しました ✅`);
-    }
+    showToast(`「${data.name}」パターンを更新しました ✅`);
   }
+  _rebuildPatCache();
   closeModal('pattern-modal');
   fbSave('/patterns', PATTERNS);
   renderPatterns();
@@ -3053,11 +3092,13 @@ function savePattern() {
 function confirmDeletePattern(idx) {
   showConfirm(`「${PATTERNS[idx].name}」パターンを削除しますか？`, 'このパターンが設定されたシフトは「未定」になります', () => {
     const name = PATTERNS[idx].name;
+    const delId = PATTERNS[idx].id;
     PATTERNS.splice(idx, 1);
-    // shiftData内の該当パターンを削除（「未定」扱いにする）
+    _rebuildPatCache();
+    // shiftData内の該当パターンIDを削除（「未定」扱いにする）
     let cleaned = 0;
     Object.keys(shiftData).forEach(key => {
-      if (shiftData[key] === name) {
+      if (shiftData[key] === delId) {
         delete shiftData[key];
         cleaned++;
       }
@@ -3079,10 +3120,7 @@ const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '通し', '夜勤', 
 function renderReport() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
-  const REST_SHIFTS = ['公休','有休','希望休','未定'];
-
   // ── 区分列の決定 ──────────────────────────────────────
-  // PATTERNSに設定されている区分を固定順序で列化（シフト入力実績に関係なく）
   const patternCats = new Set(PATTERNS.map(p => p.category).filter(Boolean));
   const activeCats  = REPORT_CATEGORIES.filter(c => patternCats.has(c));
 
@@ -3120,19 +3158,19 @@ function renderReport() {
     activeCats.forEach(c => catCounts[c] = 0);
     let kyuCount=0, yukuCount=0, shukuchoCount=0, workCount=0;
 
+    const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
     for (let d=1; d<=days; d++) {
-      const sh = shiftData[`${year}-${month}-${d}-${s.id}`];
-      if (sh && sh !== '未定') {
-        const pat = PATTERNS.find(x => x.name === sh);
-        if (!REST_SHIFTS.includes(sh)) {
+      const sid = shiftData[`${year}-${month}-${d}-${s.id}`];
+      if (sid) {
+        const pat = patById(sid);
+        if (pat && !pat.allday) {
           workCount++;
-          // 区分が設定されていればカウント
-          if (pat && pat.category && catCounts.hasOwnProperty(pat.category)) {
+          if (pat.category && catCounts.hasOwnProperty(pat.category)) {
             catCounts[pat.category]++;
           }
         }
-        if (sh === '公休' || sh === '希望休') kyuCount++;
-        if (sh === '有休') yukuCount++;
+        if (sid === _kouId || sid === _kiId) kyuCount++;
+        if (sid === _yuId) yukuCount++;
       }
       if (shukuchoData[`${year}-${month}-${d}`] === s.id) shukuchoCount++;
     }
@@ -3539,8 +3577,6 @@ function renderPaidLeavePage() {
 function exportReportCSV() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
-  const REST_SHIFTS_CSV = ['公休','有休','希望休','未定'];
-
   // PATTERNSベースの区分列（renderReportと同じロジック）
   const patternCats = new Set(PATTERNS.map(p => p.category).filter(Boolean));
   const activeCats  = REPORT_CATEGORIES.filter(c => patternCats.has(c));
@@ -3554,16 +3590,17 @@ function exportReportCSV() {
     activeCats.forEach(c => catCounts[c] = 0);
     let kyuCount=0, yukuCount=0, shukuchoCount=0, workCount=0;
 
+    const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
     for (let d=1; d<=days; d++) {
-      const sh = shiftData[`${year}-${month}-${d}-${s.id}`];
-      if (sh && sh !== '未定') {
-        const pat = PATTERNS.find(x => x.name === sh);
-        if (!REST_SHIFTS_CSV.includes(sh)) {
+      const sid = shiftData[`${year}-${month}-${d}-${s.id}`];
+      if (sid) {
+        const pat = patById(sid);
+        if (pat && !pat.allday) {
           workCount++;
-          if (pat && pat.category && catCounts.hasOwnProperty(pat.category)) catCounts[pat.category]++;
+          if (pat.category && catCounts.hasOwnProperty(pat.category)) catCounts[pat.category]++;
         }
-        if (sh === '公休' || sh === '希望休') kyuCount++;
-        if (sh === '有休') yukuCount++;
+        if (sid === _kouId || sid === _kiId) kyuCount++;
+        if (sid === _yuId) yukuCount++;
       }
       if (shukuchoData[`${year}-${month}-${d}`] === s.id) shukuchoCount++;
     }
@@ -3583,7 +3620,7 @@ function exportShiftCSV() {
   const dates = Array.from({length:days}, (_,i)=>i+1);
   let csv = `氏名,部署,${dates.map(d=>`${d}日(${WEEKDAYS[dow(year,month,d)]})`).join(',')}\n`;
   getOrderedStaff().forEach(s => {
-    const shifts = dates.map(d => shiftData[`${year}-${month}-${d}-${s.id}`]||'未定');
+    const shifts = dates.map(d => patName(shiftData[`${year}-${month}-${d}-${s.id}`]));
     csv += `${s.name},${s.dept},${shifts.join(',')}\n`;
   });
   downloadCSV(csv, `シフト表_${year}年${month}月.csv`);
@@ -3690,14 +3727,13 @@ function handleRequest(idx, status) {
       if (status === 'approved') {
         // 承認前の値を保存（取消時に復元するため）
         if (!req._origShifts) req._origShifts = {};
-        req._origShifts[d] = shiftData[key] || '未定';
+        req._origShifts[d] = shiftData[key] || '';
         // 承認 → 希望休を書き込む
-        shiftData[key] = '希望休';
+        shiftData[key] = getKibouId();
       } else if (status === 'pending' && prevStatus === 'approved') {
         // 承認取消 → 元のシフトに復元
-        const orig = (req._origShifts && req._origShifts[d]) || '未定';
-        shiftData[key] = orig === '未定' ? '未定' : orig;
-        if (shiftData[key] === '未定') delete shiftData[key];
+        const orig = (req._origShifts && req._origShifts[d]) || '';
+        if (orig) shiftData[key] = orig; else delete shiftData[key];
       }
     });
     // シフト表が表示中なら列フッター・行合計を更新
@@ -3791,7 +3827,7 @@ function renderMyShift() {
         const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
         return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
           <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
-          &nbsp;${c.from} → <strong style="color:var(--primary);">${c.to}</strong>
+          &nbsp;${patName(c.from)} → <strong style="color:var(--primary);">${patName(c.to)}</strong>
         </div>`;
       }).join('');
       notifEl.style.display = '';
@@ -3807,16 +3843,15 @@ function renderMyShift() {
     const w = dow(year,month,d);
     const holiday = getHoliday(year, month, d);
     const isHoliday = !!holiday && w!==0 && w!==6;
-    const shift = shiftData[`${year}-${month}-${d}-${staffId}`] || '未定';
+    const shiftId = shiftData[`${year}-${month}-${d}-${staffId}`] || '';
+    const shift = patName(shiftId);
     const isToday = today.getFullYear()===year && today.getMonth()+1===month && today.getDate()===d;
-    const p = PATTERNS.find(x=>x.name===shift);
+    const p = patById(shiftId);
     const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
     const isShukucho = shukuchoData[`${year}-${month}-${d}`] === staffId;
     const dayClass = `my-day ${w===0?'sunday':w===6?'saturday':''} ${isHoliday?'holiday':''} ${isToday?'today':''}`;
-    // 日付+祝日名 横並び
     const holInline = holiday ? `<span class="my-day-holiday">${holiday.slice(0,3)}</span>` : '';
     const shukuchoHtml = isShukucho ? `<div class="my-day-shukucho">宿直</div>` : '';
-    // シフト名を2文字に短縮（カレンダー表示用）
     const shortShift = shift.length > 2 ? shift.slice(0, 2) : shift;
     // 時刻（終日系は非表示）
     let timeHtml = '';
@@ -3843,14 +3878,15 @@ function renderMyShift() {
     const dt = new Date(todayObj);
     dt.setDate(dt.getDate() + i);
     const dy = dt.getFullYear(), dm = dt.getMonth() + 1, dd = dt.getDate();
-    const shift = shiftData[`${dy}-${dm}-${dd}-${staffId}`];
-    if (!shift || shift==='未定') continue;
-    const p = PATTERNS.find(x=>x.name===shift);
+    const _shiftId = shiftData[`${dy}-${dm}-${dd}-${staffId}`];
+    if (!_shiftId) continue;
+    const shift = patName(_shiftId);
+    const p = patById(_shiftId);
     const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
     const w = dt.getDay();
     const holiday = getHoliday(dy, dm, dd);
     const isShukuchoDay = shukuchoData[`${dy}-${dm}-${dd}`] === staffId;
-    const isRestDay = ['公休','有休','希望休'].includes(shift);
+    const isRestDay = p ? p.allday : false;
     // 時間情報（休日系は表示しない）
     const hasTime = !isRestDay && p && !p.allday && p.start && p.end;
     const timeRange = hasTime ? `${p.start} 〜 ${p.end}` : '';
