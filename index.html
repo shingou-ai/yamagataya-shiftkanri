@@ -116,6 +116,8 @@
   #save-bar .save-count { font-size:13px; font-weight:700; color:var(--warning); flex:1; }
   .btn-save-shift { background:var(--success); color:white; font-weight:700; }
   .btn-save-shift:hover { opacity:.85; }
+  .btn-published { background:var(--success); color:white; border-color:var(--success); font-weight:700; }
+  .btn-published:hover { opacity:.85; }
   .palette-dept-tab {
     padding:4px 10px; border-radius:12px; border:1.5px solid var(--border);
     cursor:pointer; font-size:11px; font-weight:600; background:var(--bg2);
@@ -171,9 +173,11 @@
 
   /* SHIFT BADGES */
   .shift-badge { display:inline-block; padding:3px 6px; border-radius:6px; font-size:11px; font-weight:700; line-height:1.2; white-space:nowrap; }
-  .sb-早番 { background:#FFF3CD; color:#856404; }
-  .sb-遅番 { background:#D1ECF1; color:#0c5460; }
-  .sb-夜勤 { background:#CDD3FF; color:#1a237e; }
+  .sb-早番  { background:#FFF3CD; color:#856404; }
+  .sb-中抜け{ background:#FFF8E1; color:#F57F17; }
+  .sb-遅番  { background:#D1ECF1; color:#0c5460; }
+  .sb-通し  { background:#E8F5E9; color:#2E7D32; }
+  .sb-夜勤  { background:#CDD3FF; color:#1a237e; }
   .sb-公休 { background:#F8D7DA; color:#842029; }
   .sb-有休 { background:#D4EDDA; color:#155724; }
   .sb-希望休 { background:#FFF0CC; color:#92400E; }
@@ -505,6 +509,7 @@
               <div class="month-label" id="month-label">2026年3月</div>
               <button class="month-nav-btn" onclick="changeMonth(1,'shift-table')">›</button>
             </div>
+            <button class="btn btn-outline btn-sm" id="btn-publish-month" onclick="togglePublishMonth()" title="公開するとスタッフに変更通知が届くようになります">📢 公開</button>
             <button class="btn btn-outline btn-sm" onclick="openOrderModal()">↕ 表示順</button>
             <button class="btn btn-outline btn-sm" onclick="exportShiftCSV()">📤 CSV</button>
             <button class="btn btn-save-shift btn btn-sm" id="btn-save-shift" onclick="saveShiftTable()" style="display:none">💾 保存</button>
@@ -833,8 +838,8 @@
         <option value="早番">早番</option>
         <option value="中抜け">中抜け</option>
         <option value="遅番">遅番</option>
+        <option value="通し">通し</option>
         <option value="夜勤">夜勤</option>
-        <option value="夜警">夜警</option>
         <option value="その他">その他</option>
       </select>
     </div>
@@ -1130,6 +1135,7 @@ let isPainting = false;
 let staffDisplayOrder = []; // staff IDs in display order
 let pendingShiftData     = {}; // 未保存の変更: key → 新しい値
 let pendingShiftOriginal = {}; // 各キーの変更前の値（保存時の from として使用）
+let publishedMonths      = {}; // 公開済み月: "YYYY-M" → true
 
 // 全画面共通：表示順マスタに従ったスタッフ一覧を返す
 function getOrderedStaff(includeInactive = false) {
@@ -1317,6 +1323,10 @@ async function fbLoad() {
     // 勤務パターンをFirebaseから復元
     if (d.patterns && Array.isArray(d.patterns) && d.patterns.length > 0) {
       PATTERNS.splice(0, PATTERNS.length, ...d.patterns);
+      // 旧区分「夜警」→「その他」に自動移行
+      let migrated = false;
+      PATTERNS.forEach(p => { if (p.category === '夜警') { p.category = 'その他'; migrated = true; } });
+      if (migrated) fbSave('/patterns', PATTERNS);
     }
     // 宿直担当マスタをFirebaseから復元
     if (d.shukuchoMasters && Array.isArray(d.shukuchoMasters)) {
@@ -1333,6 +1343,10 @@ async function fbLoad() {
     // 表示順マスタをFirebaseから復元
     if (d.staffDisplayOrder && Array.isArray(d.staffDisplayOrder) && d.staffDisplayOrder.length > 0) {
       staffDisplayOrder = d.staffDisplayOrder;
+    }
+    // 公開済み月をFirebaseから復元
+    if (d.publishedMonths && typeof d.publishedMonths === 'object') {
+      Object.assign(publishedMonths, d.publishedMonths);
     }
     // システム設定をFirebaseから復元
     if (d.sysConfig && d.sysConfig.annualRestTarget && Number.isInteger(d.sysConfig.annualRestTarget) && d.sysConfig.annualRestTarget > 0) {
@@ -1465,6 +1479,7 @@ function doLogin() {
       fbStartListeners();
       // 管理者ログイン時は常に最新のSTAFFをFirebaseに同期（マージ後の完全データを保存）
       if (currentRole === 'admin') fbSaveStaffOverrides();
+      renderPublishBtn();
       showPage(currentRole==='admin' ? 'shift-table' : 'my-shift');
     });
   } else {
@@ -1581,6 +1596,7 @@ function _doChangeMonth(delta, context) {
   });
   const rSub = document.getElementById('report-subtitle');
   if (rSub) rSub.textContent = `${currentMonth.year}年${currentMonth.month}月の勤務集計`;
+  renderPublishBtn();
   renderPageContent(context);
 }
 
@@ -1911,20 +1927,25 @@ function updateSaveButton() {
 function saveShiftTable() {
   if (Object.keys(pendingShiftData).length === 0) { showToast('保存する変更がありません'); return; }
 
-  // 変更ログを生成（保存前の値 → 保存後の値）
-  Object.entries(pendingShiftData).forEach(([key, newShift]) => {
-    const fromShift = pendingShiftOriginal[key] || '未定';
-    const parts = key.split('-');
-    shiftChangeLog.push({
-      staffId: parts[3],
-      year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]),
-      from: fromShift, to: newShift, at: Date.now()
+  const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+  const isPublished = !!publishedMonths[monthKey];
+
+  // 公開済みの月のみ変更ログを生成（未公開月は通知しない）
+  if (isPublished) {
+    Object.entries(pendingShiftData).forEach(([key, newShift]) => {
+      const fromShift = pendingShiftOriginal[key] || '未定';
+      const parts = key.split('-');
+      shiftChangeLog.push({
+        staffId: parts[3],
+        year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]),
+        from: fromShift, to: newShift, at: Date.now()
+      });
     });
-  });
+  }
 
   // Firebaseに保存
   fbSave('/shiftData', shiftData);
-  fbSave('/shiftChangeLog', shiftChangeLog);
+  if (isPublished) fbSave('/shiftChangeLog', shiftChangeLog);
   fbSaveStaffOverrides(); // 有休残も確定
 
   const count = Object.keys(pendingShiftData).length;
@@ -1935,9 +1956,57 @@ function saveShiftTable() {
   // pending-cell クラスを全て除去
   document.querySelectorAll('.pending-cell').forEach(el => el.classList.remove('pending-cell'));
 
-  showToast(`✅ ${count}件のシフトを保存しました（スタッフに通知されます）`);
+  if (isPublished) {
+    showToast(`✅ ${count}件のシフトを保存しました（スタッフに変更通知が届きます）`);
+  } else {
+    showToast(`✅ ${count}件のシフトを保存しました（未公開のためスタッフへの通知なし）`);
+  }
   const hint = document.getElementById('shift-table-hint');
   if (hint) hint.textContent = 'パターンを選んでセルをクリックで入力 → 保存ボタンで確定';
+}
+
+// ===== 公開フラグ管理 =====
+function renderPublishBtn() {
+  const btn = document.getElementById('btn-publish-month');
+  if (!btn) return;
+  const key = `${currentMonth.year}-${currentMonth.month}`;
+  if (publishedMonths[key]) {
+    btn.textContent = '✅ 公開中';
+    btn.className = 'btn btn-sm btn-published';
+    btn.title = 'クリックで公開を取り消し（スタッフへの通知が停止します）';
+  } else {
+    btn.textContent = '📢 公開';
+    btn.className = 'btn btn-outline btn-sm';
+    btn.title = '公開するとスタッフに変更通知が届くようになります';
+  }
+}
+function togglePublishMonth() {
+  const key = `${currentMonth.year}-${currentMonth.month}`;
+  if (publishedMonths[key]) {
+    // 公開取り消し
+    showConfirm(
+      `${currentMonth.year}年${currentMonth.month}月の公開を取り消しますか？`,
+      '取り消すと、以後のシフト変更はスタッフに通知されなくなります。',
+      () => {
+        delete publishedMonths[key];
+        fbSave('/publishedMonths', publishedMonths);
+        renderPublishBtn();
+        showToast(`${currentMonth.year}年${currentMonth.month}月の公開を取り消しました`);
+      }
+    );
+  } else {
+    // 公開する
+    showConfirm(
+      `${currentMonth.year}年${currentMonth.month}月を公開しますか？`,
+      '公開後にシフトを変更すると、スタッフに変更通知が届くようになります。',
+      () => {
+        publishedMonths[key] = true;
+        fbSave('/publishedMonths', publishedMonths);
+        renderPublishBtn();
+        showToast(`✅ ${currentMonth.year}年${currentMonth.month}月を公開しました。以後の変更はスタッフに通知されます。`);
+      }
+    );
+  }
 }
 
 // 未保存の変更をすべて取り消す
@@ -2568,8 +2637,8 @@ function renderPatterns() {
     if (seen.has(key)) return;
     seen.add(key);
     const label = key === '' ? '🌐 全部署共通' : '🏢 ' + key;
-    const CATEGORY_COLORS = { '早番':'#E3F2FD','中抜け':'#FFF8E1','遅番':'#F3E5F5','夜勤':'#E8F5E9','夜警':'#FCE4EC','その他':'#ECEFF1' };
-    const CATEGORY_TEXT   = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','夜勤':'#2E7D32','夜警':'#880E4F','その他':'#455A64' };
+    const CATEGORY_COLORS = { '早番':'#E3F2FD','中抜け':'#FFF8E1','遅番':'#F3E5F5','通し':'#E8F5E9','夜勤':'#EDE7F6','その他':'#ECEFF1' };
+    const CATEGORY_TEXT   = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','通し':'#2E7D32','夜勤':'#4527A0','その他':'#455A64' };
     const cards = groups[key].map(({p, i}) => {
       const catBadge = p.category
         ? `<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:${CATEGORY_COLORS[p.category]||'#EEE'};color:${CATEGORY_TEXT[p.category]||'#333'};margin-left:6px">${p.category}</span>`
@@ -2745,7 +2814,7 @@ function confirmDeletePattern(idx) {
 
 // ===== REPORT =====
 // 区分の固定順序
-const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '夜勤', '夜警', 'その他'];
+const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '通し', '夜勤', 'その他'];
 
 function renderReport() {
   const { year, month } = currentMonth;
@@ -2779,7 +2848,7 @@ function renderReport() {
 
   // ── テーブルヘッダー ────────────────────────────────────
   // 区分ヘッダーに色付きバッジ
-  const CAT_TH_COLOR = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','夜勤':'#2E7D32','夜警':'#880E4F','その他':'#455A64' };
+  const CAT_TH_COLOR = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','通し':'#2E7D32','夜勤':'#4527A0','その他':'#455A64' };
   const catThHtml = activeCats.map(c =>
     `<th style="text-align:center;white-space:nowrap;">
        <span style="display:inline-block;background:${CAT_TH_COLOR[c]||'#607D8B'};color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;">${c}</span>
