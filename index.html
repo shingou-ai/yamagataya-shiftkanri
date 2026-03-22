@@ -1439,6 +1439,21 @@ async function fbLoad() {
       });
       if (migrated) fbSave('/patterns', PATTERNS);
     }
+    // シフトデータ内の旧パターン名を検出・警告（パターン名変更後の孤立データ）
+    {
+      const REST_NAMES = ['公休','有休','希望休','未定'];
+      const patNames = new Set(PATTERNS.map(p => p.name));
+      const orphans = {};
+      Object.keys(shiftData).forEach(key => {
+        const v = shiftData[key];
+        if (v && !REST_NAMES.includes(v) && !patNames.has(v)) {
+          orphans[v] = (orphans[v] || 0) + 1;
+        }
+      });
+      if (Object.keys(orphans).length > 0) {
+        console.warn('⚠️ シフトデータに存在しないパターン名:', orphans);
+      }
+    }
     // 宿直担当マスタをFirebaseから復元
     if (d.shukuchoMasters && Array.isArray(d.shukuchoMasters)) {
       SHUKUCHO_MASTERS.splice(0, SHUKUCHO_MASTERS.length, ...d.shukuchoMasters);
@@ -3016,8 +3031,19 @@ function savePattern() {
     PATTERNS.push(data);
     showToast(`「${data.name}」パターンを追加しました ✅`);
   } else {
+    const oldName = PATTERNS[idx].name;
     PATTERNS[idx] = data;
-    showToast(`「${data.name}」パターンを更新しました ✅`);
+    // パターン名が変更された場合、シフトデータの旧名を新名に一括更新
+    if (oldName !== data.name) {
+      let renamed = 0;
+      Object.keys(shiftData).forEach(key => {
+        if (shiftData[key] === oldName) { shiftData[key] = data.name; renamed++; }
+      });
+      if (renamed > 0) fbSave('/shiftData', shiftData);
+      showToast(`「${oldName}」→「${data.name}」に更新しました（シフト${renamed}件も変更） ✅`);
+    } else {
+      showToast(`「${data.name}」パターンを更新しました ✅`);
+    }
   }
   closeModal('pattern-modal');
   fbSave('/patterns', PATTERNS);
