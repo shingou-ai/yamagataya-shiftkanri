@@ -52,6 +52,8 @@
   .header-user { font-size:13px; opacity:.85; }
   .logout-btn { background:rgba(255,255,255,.15); border:none; color:white; padding:6px 12px; border-radius:20px; cursor:pointer; font-size:12px; }
   .logout-btn:hover { background:rgba(255,255,255,.25); }
+  .role-switch-btn { background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.5); color:white; padding:6px 12px; border-radius:20px; cursor:pointer; font-size:12px; font-weight:600; }
+  .role-switch-btn:hover { background:rgba(255,255,255,.4); }
   .app-body { display:flex; flex:1; }
   .sidebar { width:220px; background:var(--white); border-right:1px solid var(--border); padding:16px 0; position:sticky; top:56px; height:calc(100vh - 56px); overflow-y:auto; }
   .nav-section { margin-bottom:8px; }
@@ -461,6 +463,7 @@
     <div class="header-right">
       <span class="header-badge" id="role-badge">管理者</span>
       <span class="header-user" id="user-name-header">田中 管理子</span>
+      <button id="role-switch-btn" class="role-switch-btn" onclick="switchRole()" style="display:none">👤 スタッフ切替</button>
       <button class="logout-btn" onclick="doLogout()">ログアウト</button>
     </div>
   </div>
@@ -724,6 +727,14 @@
             <div class="form-group"><label>現在のパスワード</label><input class="form-input" type="password" id="as-pw-current" placeholder="現在のパスワード"></div>
             <div class="form-group"><label>新しいパスワード</label><input class="form-input" type="password" id="as-pw-new" placeholder="新しいパスワード"></div>
             <div class="form-group"><label>新しいパスワード（確認）</label><input class="form-input" type="password" id="as-pw-confirm" placeholder="再入力"></div>
+            <div class="form-group" id="as-staffid-group">
+              <label>連携スタッフ（スタッフ切替機能）
+                <span style="font-size:11px;color:var(--text-muted);display:block;margin-top:2px;">自分のスタッフ枠と紐づけると、ヘッダーから管理者↔スタッフを切り替えられます</span>
+              </label>
+              <select class="form-input" id="as-staffid">
+                <option value="">（連携しない）</option>
+              </select>
+            </div>
             <div id="as-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px;"></div>
             <div style="display:flex;justify-content:flex-end;">
               <button class="btn btn-primary" onclick="saveAccountSettings()">💾 保存する</button>
@@ -1290,7 +1301,7 @@ function saveShiftNotifDismissed() {
 loadShiftNotifDismissed(); // 起動時に読み込み
 
 // ===== 管理者設定 =====
-const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '' };
+const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '', staffId: '' };
 
 // ===== FIREBASE 設定 =====
 // Firebase コンソール → プロジェクト設定 → マイアプリ → SDK設定 の値を貼り付けてください
@@ -1541,6 +1552,7 @@ async function fbLoad() {
     if (d.adminConfig) {
       if (d.adminConfig.id) ADMIN.id = d.adminConfig.id;
       if (d.adminConfig.password) ADMIN.password = d.adminConfig.password;
+      if (d.adminConfig.staffId !== undefined) ADMIN.staffId = d.adminConfig.staffId;
     }
     console.log('Firebase データ読み込み完了');
   } catch(e) { console.warn('Firebase 読み込みエラー:', e); }
@@ -1629,11 +1641,12 @@ function selectRole(r) {
 // ===== セッション管理（30日間自動ログイン）=====
 const _SESSION_KEY = 'ymShiftSession';
 const _SESSION_DAYS = 30;
+let _isAdminAccount = false; // 管理者本人（スタッフ切替中含む）かどうか
 function _saveSession() {
   try {
     localStorage.setItem(_SESSION_KEY, JSON.stringify({
       role: currentRole, staffId: currentStaffId, staffName: currentStaffName,
-      savedAt: Date.now()
+      isAdminAccount: _isAdminAccount, savedAt: Date.now()
     }));
   } catch(e) {}
 }
@@ -1661,6 +1674,7 @@ function _enterApp(isAuto) {
   document.getElementById('sidebar-staff').style.display = currentRole==='staff' ? '' : 'none';
   document.getElementById('bottom-nav-admin').style.display = currentRole==='admin' ? '' : 'none';
   document.getElementById('bottom-nav-staff').style.display = currentRole==='staff' ? '' : 'none';
+  updateRoleSwitchBtn();
   staffDisplayOrder = STAFF.filter(s=>s.active).map(s=>s.id);
   const _initLabel = `${currentMonth.year}年${currentMonth.month}月`;
   ['month-label','month-label-staff','month-label-all','month-label-report'].forEach(id => {
@@ -1674,6 +1688,7 @@ function _enterApp(isAuto) {
       fbStartListeners();
       if (currentRole === 'admin') fbSaveStaffOverrides();
       renderPublishBtn();
+      updateRoleSwitchBtn(); // Firebase読み込み後にADMIN.staffIdが確定してから更新
       if (isAuto) showToast(`おかえりなさい、${currentStaffName}さん ✨`);
       showPage(currentRole==='admin' ? 'shift-table' : 'my-shift');
     });
@@ -1692,6 +1707,7 @@ function tryAutoLogin() {
     currentRole = 'admin';
     currentStaffId = null;
     currentStaffName = ADMIN.name || sess.staffName;
+    _isAdminAccount = true;
     _enterApp(true);
   } else {
     // スタッフセッション検証：在籍・アクティブ確認
@@ -1700,6 +1716,7 @@ function tryAutoLogin() {
     currentRole = 'staff';
     currentStaffId = s.id;
     currentStaffName = s.name;
+    _isAdminAccount = sess.isAdminAccount || false;
     _enterApp(true);
   }
 }
@@ -1718,6 +1735,7 @@ function doLogin() {
     if (loginPw !== ADMIN.password) { errEl.style.display = ''; return; }
     currentStaffId = null;
     currentStaffName = ADMIN.name;
+    _isAdminAccount = true;
   } else {
     const s = STAFF.find(x => x.active && x.id === loginId);
     if (!s) { errEl.style.display = ''; return; }
@@ -1725,6 +1743,7 @@ function doLogin() {
     if (loginPw !== s.password) { errEl.style.display = ''; return; }
     currentStaffId = s.id;
     currentStaffName = s.name;
+    _isAdminAccount = false;
   }
   errEl.style.display = 'none';
   _saveSession(); // セッション保存（30日間有効）
@@ -1732,9 +1751,47 @@ function doLogin() {
 }
 function doLogout() {
   _clearSession(); // セッション削除
+  _isAdminAccount = false;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   selectedPalette = null;
+}
+
+// ===== 管理者↔スタッフ モード切替（Case D）=====
+function updateRoleSwitchBtn() {
+  const btn = document.getElementById('role-switch-btn');
+  if (!btn) return;
+  const linkedStaff = ADMIN.staffId ? STAFF.find(x => x.active && x.id === ADMIN.staffId) : null;
+  if (_isAdminAccount && linkedStaff) {
+    btn.style.display = '';
+    btn.textContent = currentRole === 'admin' ? '👤 スタッフ切替' : '🏯 管理者切替';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+function switchRole() {
+  const linkedStaff = ADMIN.staffId ? STAFF.find(x => x.active && x.id === ADMIN.staffId) : null;
+  if (!linkedStaff) { showToast('連携スタッフが見つかりません'); return; }
+  if (currentRole === 'admin') {
+    currentRole = 'staff';
+    currentStaffId = linkedStaff.id;
+    currentStaffName = linkedStaff.name;
+  } else {
+    currentRole = 'admin';
+    currentStaffId = null;
+    currentStaffName = ADMIN.name;
+  }
+  _saveSession();
+  document.getElementById('role-badge').textContent = currentRole === 'admin' ? '管理者' : 'スタッフ';
+  document.getElementById('user-name-header').textContent = currentStaffName;
+  document.getElementById('sidebar-admin').style.display = currentRole === 'admin' ? '' : 'none';
+  document.getElementById('sidebar-staff').style.display = currentRole === 'staff' ? '' : 'none';
+  document.getElementById('bottom-nav-admin').style.display = currentRole === 'admin' ? '' : 'none';
+  document.getElementById('bottom-nav-staff').style.display = currentRole === 'staff' ? '' : 'none';
+  updateRoleSwitchBtn();
+  renderPublishBtn();
+  showPage(currentRole === 'admin' ? 'shift-table' : 'my-shift');
+  showToast(currentRole === 'admin' ? '🏯 管理者モードに切り替えました' : '👤 スタッフモードに切り替えました');
 }
 
 // ===== 初期パスワード設定 =====
@@ -1759,7 +1816,7 @@ function confirmInitPw() {
 
   if (_initPwRole === 'admin') {
     ADMIN.password = newPw;
-    fbSave('/adminConfig', { id: ADMIN.id, password: ADMIN.password });
+    fbSave('/adminConfig', { id: ADMIN.id, password: ADMIN.password, staffId: ADMIN.staffId });
   } else {
     const s = STAFF.find(x => x.id === _initPwLoginId);
     if (s) {
@@ -4043,6 +4100,18 @@ function renderAccountSettings() {
   document.getElementById('as-pw-new').value = '';
   document.getElementById('as-pw-confirm').value = '';
   document.getElementById('as-error').style.display = 'none';
+  // 連携スタッフ選択肢を生成
+  const sel = document.getElementById('as-staffid');
+  if (sel) {
+    sel.innerHTML = '<option value="">（連携しない）</option>';
+    STAFF.filter(s => s.active).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.name}（${s.id}）`;
+      if (s.id === ADMIN.staffId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
   // システム設定の現在値をセット
   const inp = document.getElementById('sys-annual-rest');
   if (inp) inp.value = FY_REST_TARGET;
@@ -4082,18 +4151,22 @@ function saveAccountSettings() {
   if (newPw && newPw !== confPw) { errEl.textContent = '新しいパスワードが一致しません'; errEl.style.display = ''; return; }
   ADMIN.id = newId;
   if (newPw) ADMIN.password = newPw;
+  // 連携スタッフを保存
+  const staffSel = document.getElementById('as-staffid');
+  if (staffSel) ADMIN.staffId = staffSel.value;
   // Firebaseに管理者情報を保存（リロード後も維持）
-  fbSave('/adminConfig', { id: ADMIN.id, password: ADMIN.password });
+  fbSave('/adminConfig', { id: ADMIN.id, password: ADMIN.password, staffId: ADMIN.staffId });
   errEl.style.display = 'none';
   // パスワード欄をクリアして変更完了を視覚的に示す
   document.getElementById('as-pw-current').value = '';
   document.getElementById('as-pw-new').value = '';
   document.getElementById('as-pw-confirm').value = '';
   document.getElementById('as-id').value = ADMIN.id;
+  updateRoleSwitchBtn(); // 切替ボタンの表示を即時更新
   if (newPw) {
     showToast('パスワードを変更しました ✅ 次回ログインから新パスワードを使用してください');
   } else {
-    showToast('ログインIDを更新しました ✅');
+    showToast('アカウント設定を保存しました ✅');
   }
   // 設定画面を再描画して最新状態を反映
   renderAccountSettings();
