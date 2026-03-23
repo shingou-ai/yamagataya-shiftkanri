@@ -3020,18 +3020,27 @@ function buildPalette() {
 
   const hint = document.getElementById('palette-hint');
   if (hint) {
-    if (selectedPalette) hint.textContent = `「${patName(selectedPalette)}」を選択中 — セルをクリック/ドラッグで入力`;
-    else hint.textContent = 'パターンを選択してください';
+    if (!isPainting) hint.textContent = '部署を選んでパターンを表示';
+    else if (selectedPalette) hint.textContent = `「${patName(selectedPalette)}」を選択中 — セルをクリック/ドラッグで入力`;
+    else hint.textContent = '消去モード — セルをクリック/ドラッグで消去';
   }
 }
 function selectPalette(name) {
+  // 同じパレットを再クリックした場合はトグルで解除（ペイントモード終了）
+  if (isPainting && selectedPalette === name) {
+    selectedPalette = null;
+    isPainting = false;
+    buildPalette();
+    document.querySelectorAll('.shift-cell').forEach(cell => cell.classList.remove('paint-mode'));
+    const wrap = document.querySelector('#page-shift-table .shift-table-wrap');
+    if (wrap) wrap.classList.remove('paint-active');
+    return;
+  }
   selectedPalette = name;
   isPainting = true;
   buildPalette();
   // Update cursor on cells
-  document.querySelectorAll('.shift-cell').forEach(cell => {
-    cell.classList.toggle('paint-mode', !!name || isPainting);
-  });
+  document.querySelectorAll('.shift-cell').forEach(cell => cell.classList.add('paint-mode'));
   // ペイントモード中はシフト表のタッチスクロールを抑制（誤塗り防止）
   const wrap = document.querySelector('#page-shift-table .shift-table-wrap');
   if (wrap) wrap.classList.add('paint-active');
@@ -3089,9 +3098,11 @@ function renderMainShiftTable() {
       else if (isOff)  off += 1;
       const bg = p ? p.bg : '#E9ECEF';
       const fg = p ? p.fg : '#6c757d';
-      const fixInfo = shiftFixed[key];
+      // ペイントセッションで解除済みのロック(_pendingFixedOriginal)は表示しない
+      const fixInfo = (shiftFixed[key] && !_pendingFixedOriginal.hasOwnProperty(key)) ? shiftFixed[key] : null;
       const lockTip = fixInfo ? (fixInfo.reason || '固定済み') : '';
-      tbody += `<td class="shift-cell${d===_todayD?' today-col':''}"
+      const _isPendingCell = pendingShiftData.hasOwnProperty(key);
+      tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}"
         data-key="${key}"
         style="user-select:none;position:relative;"
         oncontextmenu="return openFixedMenu(event,'${key}')">
