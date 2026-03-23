@@ -2336,8 +2336,9 @@ function countRestDays(staffId, fiscalYear) {
       counts[pName] = (counts[pName] || 0) + 1;
       counts.total++;
     } else if (isHalfDayPat(val)) {
-      // 半日休みは 0.5 日分として合計に加算（名称別カウントには含めない）
-      counts.total += 0.5;
+      // 半日休みは 0.5 日分として合計および公休に加算
+      counts.total    += 0.5;
+      counts['公休'] = (counts['公休'] || 0) + 0.5;
     }
   }
   return counts;
@@ -2554,11 +2555,13 @@ function togglePublishMonth() {
 function discardShiftChanges() {
   if (Object.keys(pendingShiftData).length === 0) return;
   const _yukyuId = getYukyuId();
+  const affectedStaff = new Set(); // 行合計を再計算するスタッフIDを収集
   // paidLeaveBalance を元に戻す
   Object.entries(pendingShiftOriginal).forEach(([key, origShiftId]) => {
     const curShiftId = shiftData[key] || '';
-    if (origShiftId === curShiftId) return;
     const parts = key.split('-');
+    if (parts[3]) affectedStaff.add(parts[3]);
+    if (origShiftId === curShiftId) return;
     const s = STAFF.find(x => x.id === parts[3]);
     if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
       const origYukyu = origShiftId === _yukyuId;
@@ -2582,6 +2585,8 @@ function discardShiftChanges() {
   pendingShiftOriginal = {};
   updateSaveButton();
   updateTableTotals();
+  // 影響を受けたスタッフの行合計（出勤・休み）を再計算
+  affectedStaff.forEach(sid => updateStaffRowTotals(sid));
   showToast('変更を取り消しました');
 }
 function updateTableTotals() {
@@ -3472,6 +3477,7 @@ function renderReport() {
         const pat = patById(sid);
         if (pat && pat.halfday) {
           workCount += 0.5; // 半日勤務として0.5カウント
+          kyuCount  += 0.5; // 半日休みとして公休に0.5カウント
         } else if (pat && !pat.allday) {
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) {
@@ -3906,6 +3912,7 @@ function exportReportCSV() {
         const pat = patById(sid);
         if (pat && pat.halfday) {
           workCount += 0.5;
+          kyuCount  += 0.5; // 半日休みとして公休に0.5カウント
         } else if (pat && !pat.allday) {
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) catCounts[pat.category]++;
