@@ -250,7 +250,14 @@
   .my-shift-timebar-fill { height:100%; border-radius:3px; background:var(--accent); }
   .my-shift-timebar-break { position:absolute; top:0; height:100%; background:white; opacity:.7; }
   .my-shift-list { display:flex; flex-direction:column; gap:8px; }
-  .my-shift-item { background:white; border-radius:var(--radius-sm); padding:12px 16px; box-shadow:var(--shadow); display:flex; align-items:center; gap:12px; }
+  .my-shift-item { background:white; border-radius:var(--radius-sm); padding:12px 16px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:0; }
+  .my-shift-item-top { display:flex; align-items:flex-start; gap:12px; }
+  .daily-members-section { margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); }
+  .daily-members-dept-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:5px; flex-wrap:wrap; }
+  .daily-members-dept-label { font-size:10px; color:var(--text-muted); font-weight:700; white-space:nowrap; min-width:52px; padding-top:3px; }
+  .daily-members-chips { display:flex; flex-wrap:wrap; gap:3px; }
+  .daily-member-chip { font-size:11px; padding:2px 7px; border-radius:4px; display:inline-flex; align-items:center; gap:3px; }
+  .daily-member-time { font-size:9px; opacity:0.75; }
   .my-shift-date { width:50px; text-align:center; }
   .my-shift-day-num { font-size:20px; font-weight:700; color:var(--primary); }
   .my-shift-day-label { font-size:10px; color:var(--text-muted); }
@@ -385,9 +392,10 @@
     .my-day-time { font-size:7px; }
     .my-day-holiday { font-size:6.5px; max-width:22px; }
     .my-day-shukucho { font-size:7px; padding:1px 2px; }
-    .my-shift-item { padding:10px 12px; gap:8px; }
+    .my-shift-item { padding:10px 12px; }
     .my-shift-date { width:44px; }
     .my-shift-day-num { font-size:18px; }
+    .daily-members-dept-label { min-width:44px; }
 
     /* 表示順モーダル */
     .order-item { padding:6px 8px; font-size:12px; }
@@ -4154,6 +4162,61 @@ function handleRequest(idx, status) {
 }
 
 // ===== MY SHIFT =====
+// 部署表示順（スタッフ用日別メンバー表示）
+const DEPT_ORDER = ['フロント', '夜警', 'ルーム', '部屋清掃', '板場', '調理朝', '共用', '洗浄'];
+
+// 指定日の出勤メンバーHTML（部署別ソート→出勤時間ソート）
+function renderDailyMembersHtml(dy, dm, dd) {
+  // 出勤スタッフ収集（allday全休は除外）
+  const members = [];
+  STAFF.filter(s => s.active).forEach(s => {
+    const sid = shiftData[`${dy}-${dm}-${dd}-${s.id}`];
+    if (!sid) return;
+    const p = patById(sid);
+    if (!p || p.allday) return; // 全日休みは表示しない
+    members.push({ name: s.name, dept: s.dept || '', pat: p, start: p.start || '' });
+  });
+  if (members.length === 0) return '';
+
+  // ソート: 1.部署順 2.出勤時間順（時間なしは最後）
+  members.sort((a, b) => {
+    const da = DEPT_ORDER.indexOf(a.dept), db = DEPT_ORDER.indexOf(b.dept);
+    const dOrd = (da < 0 ? 99 : da) - (db < 0 ? 99 : db);
+    if (dOrd !== 0) return dOrd;
+    if (!a.start && !b.start) return 0;
+    if (!a.start) return 1;
+    if (!b.start) return -1;
+    return a.start.localeCompare(b.start);
+  });
+
+  // 部署ごとにグループ化
+  const groups = {};
+  members.forEach(m => {
+    const key = m.dept || 'その他';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(m);
+  });
+
+  // 表示順に整列
+  const orderedDepts = [...DEPT_ORDER.filter(d => groups[d]), ...Object.keys(groups).filter(d => !DEPT_ORDER.includes(d))];
+
+  let html = '<div class="daily-members-section">';
+  html += '<div style="font-size:10px;color:var(--text-muted);font-weight:600;margin-bottom:5px;">👥 この日の出勤メンバー</div>';
+  orderedDepts.forEach(dept => {
+    const list = groups[dept];
+    html += `<div class="daily-members-dept-row">
+      <div class="daily-members-dept-label">${dept}</div>
+      <div class="daily-members-chips">`;
+    list.forEach(m => {
+      const timeHtml = m.start ? `<span class="daily-member-time">${m.start}〜</span>` : '';
+      html += `<span class="daily-member-chip" style="background:${m.pat.bg};color:${m.pat.fg};">${m.name}${timeHtml}</span>`;
+    });
+    html += `</div></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
 function renderMyShift() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
@@ -4282,26 +4345,30 @@ function renderMyShift() {
     const breakMinText = hasTime && p && p.breakMinutes > 0 ? `休憩 ${p.breakMinutes}分` : '';
     const timeBarHtml = (isRestDay || !hasTime) ? '' : buildTimeBarHtml(p);
     const monthLabel = dm !== (today.getMonth()+1) ? `<span style="font-size:9px;color:var(--text-muted);">${dm}月</span>` : '';
-    items += `<div class="my-shift-item" style="align-items:flex-start;">
-      <div class="my-shift-date" style="padding-top:2px;">
-        ${monthLabel}
-        <div class="my-shift-day-num" style="${w===0||holiday?'color:var(--danger)':w===6?'color:var(--info)':''}">${dd}</div>
-        <div class="my-shift-day-label">${WEEKDAYS[w]}曜日</div>
-        ${holiday ? `<div style="font-size:8px;color:var(--danger);margin-top:2px;">${holiday.slice(0,4)}</div>` : ''}
-      </div>
-      <div class="my-shift-info">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shift}</span>
-          ${isShukuchoDay ? `<span style="background:#EDE7F6;color:#4A235A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">宿直</span>` : ''}
-          ${hoursText ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">${hoursText}</span>` : ''}
+    const membersHtml = renderDailyMembersHtml(dy, dm, dd);
+    items += `<div class="my-shift-item">
+      <div class="my-shift-item-top">
+        <div class="my-shift-date" style="padding-top:2px;">
+          ${monthLabel}
+          <div class="my-shift-day-num" style="${w===0||holiday?'color:var(--danger)':w===6?'color:var(--info)':''}">${dd}</div>
+          <div class="my-shift-day-label">${WEEKDAYS[w]}曜日</div>
+          ${holiday ? `<div style="font-size:8px;color:var(--danger);margin-top:2px;">${holiday.slice(0,4)}</div>` : ''}
         </div>
-        ${timeRange ? `<div style="margin-top:5px;font-size:13px;font-weight:600;color:var(--text);">${timeRange}</div>` : ''}
-        ${timeBarHtml}
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">
-          ${breakMinText ? `<span style="font-size:11px;color:var(--text-muted);">☕ ${breakMinText}</span>` : ''}
-          ${breakText ? `<span style="font-size:11px;color:var(--danger);">✂ 中抜け: ${breakText}</span>` : ''}
+        <div class="my-shift-info">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shift}</span>
+            ${isShukuchoDay ? `<span style="background:#EDE7F6;color:#4A235A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">宿直</span>` : ''}
+            ${hoursText ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">${hoursText}</span>` : ''}
+          </div>
+          ${timeRange ? `<div style="margin-top:5px;font-size:13px;font-weight:600;color:var(--text);">${timeRange}</div>` : ''}
+          ${timeBarHtml}
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;">
+            ${breakMinText ? `<span style="font-size:11px;color:var(--text-muted);">☕ ${breakMinText}</span>` : ''}
+            ${breakText ? `<span style="font-size:11px;color:var(--danger);">✂ 中抜け: ${breakText}</span>` : ''}
+          </div>
         </div>
       </div>
+      ${membersHtml}
     </div>`;
   }
   upcoming.innerHTML = items || '<div style="color:var(--text-muted);text-align:center;padding:20px">今後のシフトはありません</div>';
