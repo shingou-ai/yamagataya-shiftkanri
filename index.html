@@ -1111,9 +1111,9 @@ STAFF.forEach(s => {
 
 let PATTERNS = [
   // ── 全部署共通 ──
-  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  dept:'', category:'' },
-  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  dept:'', category:'' },
-  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  dept:'', category:'' },
+  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  halfday:false, dept:'', category:'' },
+  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  halfday:false, dept:'', category:'' },
+  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  halfday:false, dept:'', category:'' },
   // ── フロント ──
   { id:'P004', name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
   { id:'P005', name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
@@ -1156,6 +1156,19 @@ function patName(id) { if (!id) return '未定'; const p = patById(id); return p
 function isRestPat(id) { if (!id) return true; const p = patById(id); return p ? p.allday : false; }
 // 半日休みパターンかどうか判定
 function isHalfDayPat(id) { if (!id) return false; const p = patById(id); return p ? !!p.halfday : false; }
+// 半日有休パターンかどうか判定（halfday:true かつ名前に「有休」「有給」を含む）
+function isHalfYukyuPat(id) {
+  if (!isHalfDayPat(id)) return false;
+  const p = patById(id);
+  return p ? (p.name.includes('有休') || p.name.includes('有給')) : false;
+}
+// 有休コスト取得（フル有休=1, 半日有休=0.5, それ以外=0）
+function _yukyuCost(shiftId) {
+  if (!shiftId) return 0;
+  if (shiftId === getYukyuId()) return 1;
+  if (isHalfYukyuPat(shiftId)) return 0.5;
+  return 0;
+}
 // 数値を表示用に変換（小数の場合は1桁）
 function fmtCount(n) { return n % 1 === 0 ? n : n.toFixed(1); }
 // 有休パターンIDを取得
@@ -1579,6 +1592,19 @@ async function fbLoad() {
             else if (h >= 17) { p.category = '夜勤';   migrated = true; }
             else              { p.category = '遅番';   migrated = true; }
           }
+        }
+      });
+      // 午前有休・午後有休 パターンが存在しなければ自動作成
+      const halfYukyuDefs = [
+        { name:'午前有休', bg:'#C3E6CB', fg:'#0B4F23' },
+        { name:'午後有休', bg:'#A8D5B5', fg:'#0B4F23' },
+      ];
+      halfYukyuDefs.forEach(def => {
+        if (!PATTERNS.find(p => p.name === def.name)) {
+          PATTERNS.push({ id: generatePatId(), name: def.name, start:'', end:'', hours:0,
+            breakMinutes:0, breaks:[], bg:def.bg, fg:def.fg,
+            allday:false, halfday:true, dept:'', category:'' });
+          migrated = true;
         }
       });
       if (migrated) fbSave('/patterns', PATTERNS);
@@ -2310,14 +2336,14 @@ document.addEventListener('mouseup', () => { mouseIsDown = false; paintLastKey =
 
 function getFiscalYear(year, month) { return month >= 4 ? year : year - 1; }
 function countUsedLeave(staffId, fiscalYear) {
-  const _yuId = getYukyuId();
   let count = 0;
   for (const [key, val] of Object.entries(shiftData)) {
-    if (val !== _yuId) continue;
+    const cost = _yukyuCost(val);
+    if (cost === 0) continue;
     const parts = key.split('-');
     const y = parseInt(parts[0]), m = parseInt(parts[1]), sid = parts[3];
     if (sid !== staffId) continue;
-    if (getFiscalYear(y, m) === fiscalYear) count++;
+    if (getFiscalYear(y, m) === fiscalYear) count += cost;
   }
   return count;
 }
@@ -2336,9 +2362,13 @@ function countRestDays(staffId, fiscalYear) {
       counts[pName] = (counts[pName] || 0) + 1;
       counts.total++;
     } else if (isHalfDayPat(val)) {
-      // 半日休みは 0.5 日分として合計および公休に加算
-      counts.total    += 0.5;
-      counts['公休'] = (counts['公休'] || 0) + 0.5;
+      // 半日は 0.5 日分として合計に加算。有休型か公休型かで振り分け
+      counts.total += 0.5;
+      if (isHalfYukyuPat(val)) {
+        counts['有休'] = (counts['有休'] || 0) + 0.5;
+      } else {
+        counts['公休'] = (counts['公休'] || 0) + 0.5;
+      }
     }
   }
   return counts;
@@ -2384,20 +2414,17 @@ function applyPaint(key) {
   // 有休残をローカルのみ更新（保存時にFirebase反映）
   const parts = key.split('-');
   const s = STAFF.find(x => x.id === parts[3]);
-  const _yukyuId = getYukyuId();
   if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
-    const wasYukyu = currentShiftId === _yukyuId;
-    const isYukyu  = newShiftId === _yukyuId;
-    if (!wasYukyu && isYukyu) {
-      s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 1);
+    const wasCost = _yukyuCost(currentShiftId); // 変更前の有休消費コスト
+    const isCost  = _yukyuCost(newShiftId);     // 変更後の有休消費コスト
+    const delta   = isCost - wasCost;           // 正=消費増(残減), 負=消費減(残増)
+    if (delta !== 0) {
+      s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - delta);
       const hint = document.getElementById('palette-hint');
-      if (hint) hint.textContent = `「${s.name}」有休残: ${s.paidLeaveBalance}日（-1日）※未保存`;
-    } else if (wasYukyu && !isYukyu) {
-      s.paidLeaveBalance = s.paidLeaveBalance + 1;
-      const hint = document.getElementById('palette-hint');
-      if (hint) hint.textContent = `「${s.name}」有休残: ${s.paidLeaveBalance}日（+1日返却）※未保存`;
+      const sign = delta > 0 ? `-${delta}` : `+${Math.abs(delta)}`;
+      if (hint) hint.textContent = `「${s.name}」有休残: ${s.paidLeaveBalance}日（${sign}日）※未保存`;
     }
-    if (newShiftId === _yukyuId) {
+    if (isCost > 0) {
       const fy = getFiscalYear(parseInt(parts[0]), parseInt(parts[1]));
       const usedThisYear = countUsedLeave(parts[3], fy);
       const hint = document.getElementById('palette-hint');
@@ -2554,7 +2581,6 @@ function togglePublishMonth() {
 // 未保存の変更をすべて取り消す
 function discardShiftChanges() {
   if (Object.keys(pendingShiftData).length === 0) return;
-  const _yukyuId = getYukyuId();
   const affectedStaff = new Set(); // 行合計を再計算するスタッフIDを収集
   // paidLeaveBalance を元に戻す
   Object.entries(pendingShiftOriginal).forEach(([key, origShiftId]) => {
@@ -2564,10 +2590,10 @@ function discardShiftChanges() {
     if (origShiftId === curShiftId) return;
     const s = STAFF.find(x => x.id === parts[3]);
     if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
-      const origYukyu = origShiftId === _yukyuId;
-      const curYukyu  = curShiftId  === _yukyuId;
-      if (!origYukyu && curYukyu)  s.paidLeaveBalance = s.paidLeaveBalance + 1;
-      if (origYukyu  && !curYukyu) s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 1);
+      const origCost = _yukyuCost(origShiftId); // 元の有休コスト
+      const curCost  = _yukyuCost(curShiftId);  // 現在の有休コスト
+      const revert   = curCost - origCost;      // 取消で戻す分（現在コスト分を返却）
+      if (revert !== 0) s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance + revert);
     }
     // shiftDataを元に戻す
     if (!origShiftId) delete shiftData[key]; else shiftData[key] = origShiftId;
@@ -3477,7 +3503,8 @@ function renderReport() {
         const pat = patById(sid);
         if (pat && pat.halfday) {
           workCount += 0.5; // 半日勤務として0.5カウント
-          kyuCount  += 0.5; // 半日休みとして公休に0.5カウント
+          if (isHalfYukyuPat(sid)) yukuCount += 0.5; // 半日有休→有休に0.5
+          else                      kyuCount  += 0.5; // 半日公休→公休に0.5
         } else if (pat && !pat.allday) {
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) {
@@ -3912,7 +3939,8 @@ function exportReportCSV() {
         const pat = patById(sid);
         if (pat && pat.halfday) {
           workCount += 0.5;
-          kyuCount  += 0.5; // 半日休みとして公休に0.5カウント
+          if (isHalfYukyuPat(sid)) yukuCount += 0.5; // 半日有休→有休に0.5
+          else                      kyuCount  += 0.5; // 半日公休→公休に0.5
         } else if (pat && !pat.allday) {
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) catCounts[pat.category]++;
