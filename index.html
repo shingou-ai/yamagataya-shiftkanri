@@ -2120,12 +2120,35 @@ function renderUnavailRequest() {
       </div>`;
   }
 
-  // パターンセレクトを初期化（PATTERNS が変化した場合も追従）
+  // パターンセレクトを部署別グループで初期化
   const patSel = document.getElementById('unavail-pattern-input');
   if (patSel) {
     const curPatVal = patSel.value;
-    patSel.innerHTML = '<option value="">--- パターンを選択してください ---</option>' +
-      PATTERNS.map(p => `<option value="${p.id}" style="background:${p.bg};color:${p.fg};">${p.name}${p.allday?'（終日休）':p.halfday?'（半日）':p.start?`（${p.start}〜${p.end}）`:''}</option>`).join('');
+    const DEPT_ORDER = ['フロント','夜警','ルーム','部屋清掃','板場','調理朝','共用','洗浄'];
+    const restPats = PATTERNS.filter(p => p.allday || p.halfday);
+    const workByDept = {};
+    PATTERNS.filter(p => !p.allday && !p.halfday).forEach(p => {
+      const dept = p.dept || 'その他';
+      if (!workByDept[dept]) workByDept[dept] = [];
+      workByDept[dept].push(p);
+    });
+    const makeOpt = p => {
+      const info = p.allday ? '（終日休）' : p.halfday ? '（半日）' : (p.start && p.end ? `（${p.start}〜${p.end}）` : '');
+      return `<option value="${p.id}">${p.name}${info}</option>`;
+    };
+    let html = '<option value="">--- パターンを選択してください ---</option>';
+    if (restPats.length) {
+      html += `<optgroup label="── 休日系（公休・有休等）──">` + restPats.map(makeOpt).join('') + '</optgroup>';
+    }
+    const orderedDepts = [
+      ...DEPT_ORDER.filter(d => workByDept[d]),
+      ...Object.keys(workByDept).filter(d => !DEPT_ORDER.includes(d))
+    ];
+    orderedDepts.forEach(dept => {
+      const pats = (workByDept[dept] || []).slice().sort((a,b) => (a.start||'').localeCompare(b.start||''));
+      html += `<optgroup label="── ${dept} ──">` + pats.map(makeOpt).join('') + '</optgroup>';
+    });
+    patSel.innerHTML = html;
     if (curPatVal) patSel.value = curPatVal;
     onUnavailPatternChange();
   }
