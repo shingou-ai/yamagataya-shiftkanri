@@ -1150,7 +1150,7 @@
     <div class="confirm-sub" id="confirm-sub">この操作は取り消せません</div>
     <div class="modal-footer" style="justify-content:center;gap:12px;">
       <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">キャンセル</button>
-      <button class="btn btn-danger" id="confirm-ok-btn">削除する</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">OK</button>
     </div>
   </div>
 </div>
@@ -2119,8 +2119,10 @@ function _unavailDeadlinePassed(targetYear, targetMonth) {
   return false;
 }
 function _countMonthlyUnavail(staffId, year, month) {
+  // 却下・取消は申請枠を消費しないので除外
   return Object.values(unavailRequests).filter(r =>
-    r.staffId === staffId && r.year === year && r.month === month && r.status !== 'rejected'
+    r.staffId === staffId && r.year === year && r.month === month &&
+    r.status !== 'rejected' && r.status !== 'cancelled'
   ).length;
 }
 function _pendingUnavailCount() {
@@ -2170,7 +2172,7 @@ function openFixedModal() {
   document.getElementById('fixed-reason-select').value = 'スタッフ希望';
   document.getElementById('fixed-reason-other-wrap').style.display = 'none';
   document.getElementById('fixed-reason-other').value = '';
-  document.getElementById('fixed-modal').classList.add('active');
+  openModal('fixed-modal');
 }
 
 function onFixedReasonChange() {
@@ -2592,7 +2594,8 @@ function approveUnavailRequest(reqId) {
       }
       req.status = 'approved'; req.decidedAt = Date.now();
       req.decidedBy = currentStaffName || ADMIN.name;
-      req.prevPatternId = oldId; // 取消時の復元用
+      req.prevPatternId = oldId; // 取消時のシフト復元用
+      req.prevFixed = shiftFixed[shiftKey] ? JSON.parse(JSON.stringify(shiftFixed[shiftKey])) : null; // 取消時の🔒復元用
       unavailRequests[reqId] = req;
       fbSave(`/unavailRequests/${reqId}`, req);
       // スタッフへの結果通知
@@ -2601,11 +2604,12 @@ function approveUnavailRequest(reqId) {
       fbSave('/unavailNotifLog', unavailNotifLog);
       showToast(`承認しました ✅ ${req.staffName}さんの${req.month}月${req.day}日に「${patLabel}」を設定`);
       renderUnavailManage(); _updateUnavailDot();
-    }
+    },
+    '承認', false   // ボタン: 青色「承認」
   );
 }
 
-// ===== 勤務不可申請：却下 =====
+// ===== 勤務希望申請：却下 =====
 function rejectUnavailRequest(reqId) {
   const req = unavailRequests[reqId];
   if (!req || req.status !== 'pending') return;
@@ -2624,7 +2628,8 @@ function rejectUnavailRequest(reqId) {
       fbSave('/unavailNotifLog', unavailNotifLog);
       showToast('却下しました');
       renderUnavailManage();
-    }
+    },
+    '却下', true    // ボタン: 赤色「却下」
   );
 }
 
@@ -2662,7 +2667,7 @@ function cancelApprovedUnavailRequest(reqId) {
   const dateStr = `${req.year}年${req.month}月${req.day}日（${WEEKDAYS[w]}）`;
   showConfirm(
     `${req.staffName}さんの承認を取消しますか？`,
-    `${dateStr}\n「${patLabel}」→「${prevLabel}」に戻します。\n有休残高も自動補正されます。`,
+    `${dateStr}\n「${patLabel}」→「${prevLabel}」に戻します。有休残高も自動補正されます。`,
     () => {
       const shiftKey = `${req.year}-${req.month}-${req.day}-${req.staffId}`;
       // シフト表を承認前に戻す
@@ -2682,11 +2687,13 @@ function cancelApprovedUnavailRequest(reqId) {
           fbSaveStaffOverrides();
         }
       }
-      // 固定フラグも解除
-      if (shiftFixed[shiftKey]) {
+      // 固定フラグを承認前の状態に復元（承認前に🔒があればそれを戻す）
+      if (req.prevFixed) {
+        shiftFixed[shiftKey] = req.prevFixed;
+      } else {
         delete shiftFixed[shiftKey];
-        fbSave('/shiftFixed', shiftFixed);
       }
+      fbSave('/shiftFixed', shiftFixed);
       // shiftChangeLog に取消記録
       shiftChangeLog.push({ staffId: req.staffId, year: req.year, month: req.month,
         day: req.day, from: req.patternId, to: prevId, at: Date.now(), note: '勤務希望申請取消' });
@@ -2705,7 +2712,8 @@ function cancelApprovedUnavailRequest(reqId) {
       showToast(`取消しました。${req.staffName}さんの${req.month}月${req.day}日を「${prevLabel}」に戻しました`);
       renderUnavailManage();
       if (document.getElementById('page-shift-table')?.classList.contains('active')) renderShiftTable();
-    }
+    },
+    '承認取消', true   // ボタン: 赤色「承認取消」
   );
 }
 
@@ -3220,10 +3228,30 @@ function countRestDays(staffId, fiscalYear) {
   return counts;
 }
 
+// ペイントセッション中に解除確認済みのセルキー（1セルずつ確認が出ないよう管理）
+let _confirmedUnlocks    = new Set();
+// ペイントセッション中に削除された🔒の元データ（discard時に復元するため保存）
+let _pendingFixedOriginal = {};
+
 function applyPaint(key) {
   const currentShiftId = shiftData[key] || '';
   const newShiftId = selectedPalette === null ? '' : selectedPalette;
   if (currentShiftId === newShiftId) return;
+
+  // 🔒固定済みセルへの変更は確認が必要（このセッションで未確認の場合のみ）
+  if (shiftFixed[key] && !_confirmedUnlocks.has(key)) {
+    const reason = shiftFixed[key].reason || '';
+    showConfirm(
+      '固定済みシフトを変更しますか？',
+      `🔒 このセルは固定されています${reason ? `\n理由：${reason}` : ''}\n変更すると固定が解除されます。`,
+      () => {
+        _confirmedUnlocks.add(key);
+        applyPaint(key); // 確認後に再実行
+      },
+      '変更する', false   // 青ボタン
+    );
+    return;
+  }
 
   // 初回変更時に元の値を記録（保存時の from として使用）
   if (!pendingShiftOriginal.hasOwnProperty(key)) {
@@ -3233,8 +3261,14 @@ function applyPaint(key) {
   // ローカルに反映（Firebase保存はしない）
   if (!newShiftId) delete shiftData[key]; else shiftData[key] = newShiftId;
 
-  // シフトを変更した場合は固定フラグを自動解除
-  if (shiftFixed[key]) { delete shiftFixed[key]; fbSave('/shiftFixed', shiftFixed); }
+  // 固定フラグを解除（discard時に復元できるよう元データを保存）
+  if (shiftFixed[key]) {
+    if (!_pendingFixedOriginal.hasOwnProperty(key)) {
+      _pendingFixedOriginal[key] = JSON.parse(JSON.stringify(shiftFixed[key]));
+    }
+    delete shiftFixed[key];
+    fbSave('/shiftFixed', shiftFixed);
+  }
 
   // 元の値に戻った場合はpendingから除外
   const origVal = pendingShiftOriginal[key];
@@ -3369,6 +3403,8 @@ function saveShiftTable() {
   const count = Object.keys(pendingShiftData).length;
   pendingShiftData = {};
   pendingShiftOriginal = {};
+  _pendingFixedOriginal = {}; // 保存確定：🔒追跡データをリセット
+  _confirmedUnlocks.clear(); // 確認済みセットもリセット
   updateSaveButton();
 
   // pending-cell クラスを全て除去
@@ -3458,10 +3494,19 @@ function discardShiftChanges() {
   });
   pendingShiftData = {};
   pendingShiftOriginal = {};
+  // ペイント中に解除された🔒を復元
+  const fixedRestored = Object.keys(_pendingFixedOriginal).length > 0;
+  Object.entries(_pendingFixedOriginal).forEach(([k, fixedEntry]) => {
+    shiftFixed[k] = fixedEntry;
+  });
+  if (fixedRestored) fbSave('/shiftFixed', shiftFixed);
+  _pendingFixedOriginal = {};
+  _confirmedUnlocks.clear();
   updateSaveButton();
   updateTableTotals();
   // 影響を受けたスタッフの行合計（出勤・休み）を再計算
   affectedStaff.forEach(sid => updateStaffRowTotals(sid));
+  if (fixedRestored) renderMainShiftTable();
   showToast('変更を取り消しました');
 }
 function updateTableTotals() {
@@ -5503,10 +5548,13 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 // ===== CONFIRM DIALOG =====
-function showConfirm(text, sub, onOk) {
+// okLabel: ボタンラベル（省略時 'OK'）  danger: true=赤ボタン(default), false=青ボタン
+function showConfirm(text, sub, onOk, okLabel, danger) {
   document.getElementById('confirm-text').textContent = text;
-  document.getElementById('confirm-sub').textContent = sub;
+  document.getElementById('confirm-sub').textContent = sub || '';
   const btn = document.getElementById('confirm-ok-btn');
+  btn.textContent = okLabel || 'OK';
+  btn.className   = (danger === false) ? 'btn btn-primary' : 'btn btn-danger';
   btn.onclick = () => { closeModal('confirm-modal'); onOk(); };
   openModal('confirm-modal');
 }
