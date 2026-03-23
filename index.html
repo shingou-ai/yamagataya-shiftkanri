@@ -475,6 +475,11 @@
       <button class="logout-btn" onclick="doLogout()">ログアウト</button>
     </div>
   </div>
+  <!-- バージョン更新バナー（新しいデプロイを検知したとき表示） -->
+  <div id="update-banner" style="display:none;background:linear-gradient(90deg,#1565C0,#1976D2);color:white;padding:9px 16px;display:none;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:500;text-align:center;">
+    <span>🔄 新しいバージョンが公開されています</span>
+    <button onclick="location.reload()" style="background:white;color:#1565C0;border:none;padding:5px 16px;border-radius:14px;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap;">今すぐ更新</button>
+  </div>
 
   <div class="app-body">
     <!-- SIDEBAR ADMIN -->
@@ -1942,6 +1947,50 @@ function doLogin() {
   _saveSession(); // セッション保存（30日間有効）
   _enterApp(false);
 }
+// ===== バージョン自動更新チェック =====
+// 10分おとに HEAD リクエストで Last-Modified を比較し、新しいデプロイを検知したら更新バナーを表示
+(function initUpdateChecker() {
+  const CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10分
+  const FIRST_CHECK_DELAY  = 60 * 1000;     // 初回は起動1分後
+  let _knownMark = '';         // 初回取得時の Last-Modified / ETag
+  let _updateShown = false;    // バナーが一度表示されたら繰り返し表示しない
+
+  async function _fetchMark() {
+    // クエリパラメータでCDNキャッシュをバイパス
+    const url = location.origin + location.pathname + '?_v=' + Date.now();
+    const resp = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    return resp.headers.get('last-modified') || resp.headers.get('etag') || '';
+  }
+
+  async function checkForUpdate() {
+    if (_updateShown) return;
+    try {
+      const mark = await _fetchMark();
+      if (!mark) return;
+      if (!_knownMark) { _knownMark = mark; return; } // 初回: 基準値として記録するだけ
+      if (mark === _knownMark) return;                  // 変化なし
+      // 新しいデプロイを検知
+      _updateShown = true;
+      const banner = document.getElementById('update-banner');
+      if (!banner) return;
+      if (currentRole === 'staff') {
+        // スタッフは自動リロード（編集操作がないため）
+        showToast('新しいバージョンに更新します...');
+        setTimeout(() => location.reload(), 2000);
+      } else {
+        // 管理者はバナー表示（入力中の操作を中断させない）
+        banner.style.display = 'flex';
+      }
+    } catch(e) { /* ネットワークエラーは無視 */ }
+  }
+
+  // 起動1分後に初回チェック（基準値記録）→ 以降10分おき
+  setTimeout(() => {
+    checkForUpdate();
+    setInterval(checkForUpdate, CHECK_INTERVAL_MS);
+  }, FIRST_CHECK_DELAY);
+})();
+
 function doLogout() {
   _clearSession(); // セッション削除
   _isAdminAccount = false;
