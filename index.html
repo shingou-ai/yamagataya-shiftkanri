@@ -1411,6 +1411,82 @@ function fbSave(path, data) {
   _db.ref(path).set(data).catch(e => console.warn('Firebase 保存エラー:', path, e));
 }
 
+// ===== 古いシフトデータの自動削除（5年分保持）=====
+const _PURGE_KEEP_MONTHS = 60; // 5年 = 60ヶ月
+
+function _getPurgeCutoff() {
+  // 現在の月から60ヶ月（5年）前の年月を計算
+  // 例: 2026-03 → cutoff = 2021-03（2021-02以前を削除）
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - _PURGE_KEEP_MONTHS, 1);
+  return { year: d.getFullYear(), month: d.getMonth() + 1 }; // month は 1始まり
+}
+
+function _isBeforeCutoff(y, m, cutoff) {
+  return y < cutoff.year || (y === cutoff.year && m < cutoff.month);
+}
+
+async function purgeOldShiftData() {
+  if (!_fbReady || currentRole !== 'admin') return;
+  const cutoff = _getPurgeCutoff();
+  const updates = {}; // Firebase multi-path update（null = 削除）
+  let shiftCount = 0, shukuchoCount = 0, logCount = 0;
+
+  // ── shiftData（キー形式: YYYY-M-D-staffId）──
+  Object.keys(shiftData).forEach(k => {
+    const p = k.split('-');
+    if (p.length < 3) return;
+    const y = parseInt(p[0]), m = parseInt(p[1]);
+    if (_isBeforeCutoff(y, m, cutoff)) {
+      updates[`shiftData/${k}`] = null;
+      shiftCount++;
+    }
+  });
+
+  // ── shukuchoData（キー形式: YYYY-M-D）──
+  Object.keys(shukuchoData).forEach(k => {
+    const p = k.split('-');
+    if (p.length < 2) return;
+    const y = parseInt(p[0]), m = parseInt(p[1]);
+    if (_isBeforeCutoff(y, m, cutoff)) {
+      updates[`shukuchoData/${k}`] = null;
+      shukuchoCount++;
+    }
+  });
+
+  // ── shiftChangeLog（配列：year/month フィールドを参照）──
+  const newLog = shiftChangeLog.filter(c => {
+    if (_isBeforeCutoff(c.year, c.month, cutoff)) { logCount++; return false; }
+    return true;
+  });
+  const logChanged = logCount > 0;
+
+  const totalCount = shiftCount + shukuchoCount + logCount;
+  if (totalCount === 0) return; // 削除対象なし
+
+  try {
+    // shiftData / shukuchoData を multi-path update で一括削除
+    if (Object.keys(updates).length > 0) {
+      await _db.ref('/').update(updates);
+      // ローカルからも削除
+      Object.keys(updates).forEach(path => {
+        const [col, ...rest] = path.split('/');
+        const key = rest.join('/');
+        if (col === 'shiftData')   delete shiftData[key];
+        if (col === 'shukuchoData') delete shukuchoData[key];
+      });
+    }
+    // shiftChangeLog は配列なので上書き保存
+    if (logChanged) {
+      shiftChangeLog.splice(0, shiftChangeLog.length, ...newLog);
+      fbSave('/shiftChangeLog', shiftChangeLog);
+    }
+    console.log(`[purge] 古いデータを削除しました: shiftData ${shiftCount}件, shukuchoData ${shukuchoCount}件, shiftChangeLog ${logCount}件 (${cutoff.year}年${cutoff.month}月以前)`);
+  } catch (e) {
+    console.warn('[purge] 古いデータ削除エラー:', e);
+  }
+}
+
 async function fbLoad() {
   if (!_fbReady) return;
   try {
@@ -1726,7 +1802,10 @@ function _enterApp(isAuto) {
     if (!isAuto) showToast('データを読み込み中… ⏳');
     fbLoad().then(() => {
       fbStartListeners();
-      if (currentRole === 'admin') fbSaveStaffOverrides();
+      if (currentRole === 'admin') {
+        fbSaveStaffOverrides();
+        purgeOldShiftData(); // 5年以上前の古いデータを自動削除
+      }
       renderPublishBtn();
       updateRoleSwitchBtn(); // Firebase読み込み後にADMIN.staffIdが確定してから更新
       if (isAuto) showToast(`おかえりなさい、${currentStaffName}さん ✨`);
