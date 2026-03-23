@@ -943,6 +943,16 @@
       <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
         <input type="checkbox" id="pattern-halfday-input" onchange="toggleHalfdayPattern()"> 半日（0.5日休み・時間入力を無効にする）
       </label>
+      <!-- 終日または半日チェック時のみ表示 -->
+      <div id="pattern-yukyu-section" style="display:none;margin-top:10px;padding:8px 10px;background:var(--accent-light);border-radius:var(--radius-sm);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;font-weight:600;">▼ 有給種別</div>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="pattern-yukyu-type" id="pattern-yukyu-kokyu" value="false" checked> 公休・その他の休み（有給ではない）
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="pattern-yukyu-type" id="pattern-yukyu-yukyu" value="true"> 有休（有給休暇として有休残を消費）
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('pattern-modal')">キャンセル</button>
@@ -1111,9 +1121,9 @@ STAFF.forEach(s => {
 
 let PATTERNS = [
   // ── 全部署共通 ──
-  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  halfday:false, dept:'', category:'' },
-  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  halfday:false, dept:'', category:'' },
-  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  halfday:false, dept:'', category:'' },
+  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  halfday:false, yukyuType:false, dept:'', category:'' },
+  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  halfday:false, yukyuType:true,  dept:'', category:'' },
+  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  halfday:false, yukyuType:false, dept:'', category:'' },
   // ── フロント ──
   { id:'P004', name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
   { id:'P005', name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
@@ -1156,17 +1166,24 @@ function patName(id) { if (!id) return '未定'; const p = patById(id); return p
 function isRestPat(id) { if (!id) return true; const p = patById(id); return p ? p.allday : false; }
 // 半日休みパターンかどうか判定
 function isHalfDayPat(id) { if (!id) return false; const p = patById(id); return p ? !!p.halfday : false; }
-// 半日有休パターンかどうか判定（halfday:true かつ名前に「有休」「有給」を含む）
-function isHalfYukyuPat(id) {
-  if (!isHalfDayPat(id)) return false;
+// 有休パターンかどうか判定（yukyuTypeフラグ優先、未設定時は名前でフォールバック）
+function isYukyuPat(id) {
+  if (!id) return false;
   const p = patById(id);
-  return p ? (p.name.includes('有休') || p.name.includes('有給')) : false;
+  if (!p) return false;
+  if (p.yukyuType !== undefined && p.yukyuType !== null) return !!p.yukyuType;
+  // フォールバック: yukyuTypeフラグ未設定の旧データはパターン名で判定
+  return p.name === '有休' || p.name.includes('有休') || p.name.includes('有給');
 }
+// 半日有休パターンかどうか判定
+function isHalfYukyuPat(id) { return isHalfDayPat(id) && isYukyuPat(id); }
 // 有休コスト取得（フル有休=1, 半日有休=0.5, それ以外=0）
 function _yukyuCost(shiftId) {
   if (!shiftId) return 0;
-  if (shiftId === getYukyuId()) return 1;
-  if (isHalfYukyuPat(shiftId)) return 0.5;
+  const p = patById(shiftId);
+  if (!p || !isYukyuPat(shiftId)) return 0;
+  if (p.allday) return 1;
+  if (p.halfday) return 0.5;
   return 0;
 }
 // 数値を表示用に変換（小数の場合は1桁）
@@ -1594,6 +1611,14 @@ async function fbLoad() {
           }
         }
       });
+      // yukyuType フラグが未設定のパターンに自動設定（後方互換性）
+      PATTERNS.forEach(p => {
+        if (p.yukyuType === undefined || p.yukyuType === null) {
+          const nm = p.name || '';
+          p.yukyuType = (nm === '有休' || nm.includes('有休') || nm.includes('有給'));
+          migrated = true;
+        }
+      });
       // 午前有休・午後有休 パターンが存在しなければ自動作成
       const halfYukyuDefs = [
         { name:'午前有休', bg:'#C3E6CB', fg:'#0B4F23' },
@@ -1603,7 +1628,7 @@ async function fbLoad() {
         if (!PATTERNS.find(p => p.name === def.name)) {
           PATTERNS.push({ id: generatePatId(), name: def.name, start:'', end:'', hours:0,
             breakMinutes:0, breaks:[], bg:def.bg, fg:def.fg,
-            allday:false, halfday:true, dept:'', category:'' });
+            allday:false, halfday:true, yukyuType:true, dept:'', category:'' });
           migrated = true;
         }
       });
@@ -2349,26 +2374,23 @@ function countUsedLeave(staffId, fiscalYear) {
 }
 // 年度内の全休日カウント（公休＋有休＋希望休）
 function countRestDays(staffId, fiscalYear) {
-  const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
-  const restIds = [_kouId, _yuId, _kiId].filter(Boolean);
+  const _kiId = getKibouId(); // 希望休は専用列があるため特別扱い
   const counts = { '公休': 0, '有休': 0, '希望休': 0, total: 0 };
   for (const [key, val] of Object.entries(shiftData)) {
     const parts = key.split('-');
     const y = parseInt(parts[0]), m = parseInt(parts[1]), sid = parts[3];
     if (sid !== staffId) continue;
     if (getFiscalYear(y, m) !== fiscalYear) continue;
-    if (restIds.includes(val)) {
-      const pName = patName(val);
-      counts[pName] = (counts[pName] || 0) + 1;
-      counts.total++;
-    } else if (isHalfDayPat(val)) {
-      // 半日は 0.5 日分として合計に加算。有休型か公休型かで振り分け
-      counts.total += 0.5;
-      if (isHalfYukyuPat(val)) {
-        counts['有休'] = (counts['有休'] || 0) + 0.5;
-      } else {
-        counts['公休'] = (counts['公休'] || 0) + 0.5;
-      }
+    const pat = patById(val);
+    if (!pat || (!pat.allday && !pat.halfday)) continue;
+    const cost = pat.halfday ? 0.5 : 1;
+    counts.total += cost;
+    if (isYukyuPat(val)) {
+      counts['有休'] = (counts['有休'] || 0) + cost;
+    } else if (val === _kiId) {
+      counts['希望休'] = (counts['希望休'] || 0) + cost;
+    } else {
+      counts['公休'] = (counts['公休'] || 0) + cost;
     }
   }
   return counts;
@@ -3262,10 +3284,13 @@ function renderPatterns() {
         : '';
       const halfdayBadge = p.halfday
         ? `<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#E3F2FD;color:#1565C0;margin-left:4px">½日</span>`
+        : (p.allday ? `<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#F3F4F6;color:#555;margin-left:4px">1日</span>` : '');
+      const yukyuBadge = (p.allday || p.halfday) && p.yukyuType
+        ? `<span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;background:#D4EDDA;color:#155724;margin-left:3px">有休</span>`
         : '';
       return `
       <div class="pattern-card" style="border-top-color:${p.bg};">
-        <div class="pattern-name"><span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:14px">${p.name}</span>${catBadge}${halfdayBadge}</div>
+        <div class="pattern-name"><span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:14px">${p.name}</span>${catBadge}${halfdayBadge}${yukyuBadge}</div>
         <div class="pattern-time" style="margin-top:8px">${p.allday ? '終日' : p.halfday ? '半日（0.5日）' : p.start+' 〜 '+p.end}</div>
         <div class="pattern-hours">${p.hours > 0 ? p.hours+'h' : '—'}${p.breakMinutes > 0 ? `<span style="font-size:13px;color:var(--text-muted);font-weight:400;margin-left:6px">休憩${p.breakMinutes}分</span>` : ''}</div>
         <div class="pattern-actions">
@@ -3325,6 +3350,7 @@ function openAddPattern() {
   document.getElementById('pattern-text-color-input').value = auto.fg;
   document.getElementById('pattern-allday-input').checked = false;
   document.getElementById('pattern-halfday-input').checked = false;
+  document.getElementById('pattern-yukyu-kokyu').checked = true; // デフォルト: 公休
   document.getElementById('pattern-category-input').value = '';
   populatePatternDeptSelect('');
   toggleAlldayPattern();
@@ -3347,6 +3373,10 @@ function openEditPattern(idx) {
   document.getElementById('pattern-text-color-input').value = p.fg;
   document.getElementById('pattern-allday-input').checked = p.allday;
   document.getElementById('pattern-halfday-input').checked = !!p.halfday;
+  // 有給種別ラジオボタンをセット
+  const isYukyu = p.yukyuType === true;
+  document.getElementById('pattern-yukyu-yukyu').checked = isYukyu;
+  document.getElementById('pattern-yukyu-kokyu').checked = !isYukyu;
   document.getElementById('pattern-category-input').value = p.category || '';
   populatePatternDeptSelect(p.dept || '');
   if (p.halfday) toggleHalfdayPattern(); else toggleAlldayPattern();
@@ -3364,6 +3394,11 @@ function _disableTimeInputs(disabled, label) {
   const dispEl = document.getElementById('pattern-calc-display');
   if (disabled && dispEl) dispEl.textContent = `—（${label}）`;
   else if (dispEl) updatePatternCalc();
+  // 有給種別セクションの表示切替（終日または半日チェック時に表示）
+  const allday  = document.getElementById('pattern-allday-input')?.checked;
+  const halfday = document.getElementById('pattern-halfday-input')?.checked;
+  const yukSec  = document.getElementById('pattern-yukyu-section');
+  if (yukSec) yukSec.style.display = (allday || halfday) ? '' : 'none';
 }
 function toggleAlldayPattern() {
   const allday = document.getElementById('pattern-allday-input').checked;
@@ -3406,6 +3441,7 @@ function savePattern() {
     fg:           document.getElementById('pattern-text-color-input').value,
     allday,
     halfday,
+    yukyuType:    (allday || halfday) ? document.getElementById('pattern-yukyu-yukyu').checked : false,
     dept:         document.getElementById('pattern-dept-input').value,
     category:     document.getElementById('pattern-category-input').value,
   };
@@ -3496,23 +3532,26 @@ function renderReport() {
     activeCats.forEach(c => catCounts[c] = 0);
     let kyuCount=0, yukuCount=0, shukuchoCount=0, workCount=0;
 
-    const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
     for (let d=1; d<=days; d++) {
       const sid = shiftData[`${year}-${month}-${d}-${s.id}`];
       if (sid) {
         const pat = patById(sid);
         if (pat && pat.halfday) {
-          workCount += 0.5; // 半日勤務として0.5カウント
-          if (isHalfYukyuPat(sid)) yukuCount += 0.5; // 半日有休→有休に0.5
-          else                      kyuCount  += 0.5; // 半日公休→公休に0.5
-        } else if (pat && !pat.allday) {
+          // 半日パターン: 0.5勤務 + yukyuTypeフラグで有休/公休振り分け
+          workCount += 0.5;
+          if (isYukyuPat(sid)) yukuCount += 0.5;
+          else                  kyuCount  += 0.5;
+        } else if (pat && pat.allday) {
+          // 全日休みパターン: yukyuTypeフラグで有休/公休振り分け
+          if (isYukyuPat(sid)) yukuCount++;
+          else                  kyuCount++;
+        } else if (pat) {
+          // 通常勤務パターン
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) {
             catCounts[pat.category]++;
           }
         }
-        if (sid === _kouId || sid === _kiId) kyuCount++;
-        if (sid === _yuId) yukuCount++;
       }
       if (shukuchoData[`${year}-${month}-${d}`] === s.id) shukuchoCount++;
     }
@@ -3525,8 +3564,8 @@ function renderReport() {
         const v = catCounts[c];
         return `<td style="text-align:center;${v>0?`font-weight:700;color:${CAT_TH_COLOR[c]||'inherit'}`:'color:var(--text-muted)'}">${v||'—'}</td>`;
       }).join('')}
-      <td style="text-align:center;${kyuCount>0?'color:var(--danger);font-weight:700':'color:var(--text-muted)'}">${kyuCount||'—'}</td>
-      <td style="text-align:center;${yukuCount>0?'color:var(--success);font-weight:700':'color:var(--text-muted)'}">${yukuCount||'—'}</td>
+      <td style="text-align:center;${kyuCount>0?'color:var(--danger);font-weight:700':'color:var(--text-muted)'}">${fmtCount(kyuCount)||'—'}</td>
+      <td style="text-align:center;${yukuCount>0?'color:var(--success);font-weight:700':'color:var(--text-muted)'}">${fmtCount(yukuCount)||'—'}</td>
       <td style="text-align:center;${shukuchoCount>0?'font-weight:700;color:#4A235A':'color:var(--text-muted)'}">${shukuchoCount||'—'}</td>
       <td style="text-align:center;font-weight:700">${fmtCount(workCount)}</td>
     </tr>`;
@@ -3932,21 +3971,21 @@ function exportReportCSV() {
     activeCats.forEach(c => catCounts[c] = 0);
     let kyuCount=0, yukuCount=0, shukuchoCount=0, workCount=0;
 
-    const _kouId = getKoukyuId(), _yuId = getYukyuId(), _kiId = getKibouId();
     for (let d=1; d<=days; d++) {
       const sid = shiftData[`${year}-${month}-${d}-${s.id}`];
       if (sid) {
         const pat = patById(sid);
         if (pat && pat.halfday) {
           workCount += 0.5;
-          if (isHalfYukyuPat(sid)) yukuCount += 0.5; // 半日有休→有休に0.5
-          else                      kyuCount  += 0.5; // 半日公休→公休に0.5
-        } else if (pat && !pat.allday) {
+          if (isYukyuPat(sid)) yukuCount += 0.5;
+          else                  kyuCount  += 0.5;
+        } else if (pat && pat.allday) {
+          if (isYukyuPat(sid)) yukuCount++;
+          else                  kyuCount++;
+        } else if (pat) {
           workCount++;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) catCounts[pat.category]++;
         }
-        if (sid === _kouId || sid === _kiId) kyuCount++;
-        if (sid === _yuId) yukuCount++;
       }
       if (shukuchoData[`${year}-${month}-${d}`] === s.id) shukuchoCount++;
     }
@@ -3954,7 +3993,7 @@ function exportReportCSV() {
     const vals = [
       s.name, s.dept,
       ...activeCats.map(c => catCounts[c]),
-      kyuCount, yukuCount, shukuchoCount, fmtCount(workCount)
+      fmtCount(kyuCount), fmtCount(yukuCount), shukuchoCount, fmtCount(workCount)
     ];
     csv += vals.join(',') + '\n';
   });
