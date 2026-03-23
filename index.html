@@ -176,6 +176,10 @@
 
   /* SHIFT BADGES */
   .shift-badge { display:inline-block; padding:3px 6px; border-radius:6px; font-size:11px; font-weight:700; line-height:1.2; white-space:nowrap; }
+  .lock-badge { position:absolute; top:1px; right:2px; font-size:9px; line-height:1; pointer-events:none; opacity:0.9; filter:drop-shadow(0 0 1px rgba(0,0,0,0.3)); }
+  #fixed-context-menu { position:fixed; z-index:9999; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 4px 16px rgba(0,0,0,0.18); overflow:hidden; min-width:168px; }
+  .fcm-item { padding:10px 16px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .fcm-item:hover { background:var(--accent-light); }
   /* シフト時間ツールチップ */
   #shift-time-tooltip { position:fixed; background:#333; color:#fff; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; pointer-events:none; z-index:99999; white-space:nowrap; display:none; box-shadow:0 2px 8px rgba(0,0,0,.3); }
   /* 宿直×休み警告 */
@@ -1059,6 +1063,36 @@
   </div>
 </div>
 
+<!-- コンテキストメニュー: シフト固定 -->
+<div id="fixed-context-menu" style="display:none;">
+  <div id="fcm-lock"   class="fcm-item" onclick="openFixedModal()">🔒 このシフトを固定する</div>
+  <div id="fcm-unlock" class="fcm-item" style="color:var(--danger);" onclick="clearShiftFixed()">🔓 固定を解除する</div>
+</div>
+
+<!-- MODAL: シフト固定 -->
+<div class="modal-overlay" id="fixed-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title">🔒 シフトを固定</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;" id="fixed-modal-label"></div>
+    <div class="form-group">
+      <label>固定理由</label>
+      <select class="form-input" id="fixed-reason-select" onchange="onFixedReasonChange()">
+        <option value="スタッフ希望">スタッフ希望</option>
+        <option value="研修・イベント">研修・イベント</option>
+        <option value="公休消化">公休消化</option>
+        <option value="その他">その他（自由入力）</option>
+      </select>
+    </div>
+    <div id="fixed-reason-other-wrap" style="display:none;margin-top:-8px;margin-bottom:12px;">
+      <input type="text" class="form-input" id="fixed-reason-other" placeholder="理由を入力してください" maxlength="50">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('fixed-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveShiftFixed()">🔒 固定する</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: 有給手動付与 -->
 <div class="modal-overlay" id="manual-grant-modal">
   <div class="modal">
@@ -1450,6 +1484,7 @@ const UNAVAIL_REASONS = [
   '👨‍👩‍👦 家族の介護・育児',
   '📋 その他',  // 「その他」選択時はテキスト入力を表示
 ];
+let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
 let unavailRequests    = {};  // reqId → requestObj
 let unavailNotifLog    = [];  // スタッフへの結果通知ログ
 let unavailNotifDismissed = {}; // staffId → dismissedAt(timestamp) // { staffId, year, month, day, from, to, at }
@@ -1648,6 +1683,7 @@ async function fbLoad() {
     }
     if (d.shiftChangeLog) shiftChangeLog = Array.isArray(d.shiftChangeLog) ? d.shiftChangeLog : Object.values(d.shiftChangeLog);
     if (d.reqNotifLog)    reqNotifLog    = Array.isArray(d.reqNotifLog)    ? d.reqNotifLog    : Object.values(d.reqNotifLog);
+    if (d.shiftFixed)       shiftFixed       = d.shiftFixed;
     if (d.unavailRequests)  unavailRequests  = d.unavailRequests;
     if (d.unavailNotifLog)  unavailNotifLog  = Array.isArray(d.unavailNotifLog) ? d.unavailNotifLog : Object.values(d.unavailNotifLog);
     if (d.unavailNotifDismissed) Object.assign(unavailNotifDismissed, d.unavailNotifDismissed);
@@ -1889,6 +1925,13 @@ function fbStartListeners() {
       renderAccountSettings();
     }
   });
+  // シフト固定フラグのリアルタイム同期
+  _db.ref('/shiftFixed').on('value', snap => {
+    shiftFixed = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-shift-table') renderMainShiftTable();
+  });
+
   // 勤務希望申請のリアルタイム同期
   _db.ref('/unavailRequests').on('value', snap => {
     unavailRequests = snap.val() || {};
@@ -2091,6 +2134,70 @@ function _updateUnavailDot() {
   // タブ内の dot
   const tabDot = document.getElementById('unavail-tab-dot');
   if (tabDot) tabDot.style.display = cnt > 0 ? '' : 'none';
+}
+
+// ===== シフト固定フラグ =====
+let _fixedTargetKey = null; // 現在操作対象のセルキー
+
+function openFixedMenu(event, key) {
+  if (currentRole !== 'admin') return false; // 管理者のみ
+  event.preventDefault();
+  _fixedTargetKey = key;
+  const menu = document.getElementById('fixed-context-menu');
+  const isFixed = !!shiftFixed[key];
+  document.getElementById('fcm-lock').style.display   = isFixed ? 'none' : 'flex';
+  document.getElementById('fcm-unlock').style.display = isFixed ? 'flex' : 'none';
+  // ページ端を超えないよう位置調整
+  const x = Math.min(event.clientX, window.innerWidth  - 180);
+  const y = Math.min(event.clientY, window.innerHeight - 100);
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  menu.style.display = 'block';
+  // メニュー外クリックで閉じる
+  setTimeout(() => document.addEventListener('click', _closeFixedMenu, { once: true }), 0);
+  return false;
+}
+function _closeFixedMenu() { document.getElementById('fixed-context-menu').style.display = 'none'; }
+
+function openFixedModal() {
+  if (!_fixedTargetKey) return;
+  const parts = _fixedTargetKey.split('-');
+  const y = parts[0], m = parts[1], d = parts[2];
+  const sName = STAFF.find(s => s.id === parts[3])?.name || parts[3];
+  const shiftId = shiftData[_fixedTargetKey];
+  const patLabel = shiftId ? patName(shiftId) : '未定';
+  document.getElementById('fixed-modal-label').textContent = `${y}年${m}月${d}日　${sName}　（${patLabel}）`;
+  document.getElementById('fixed-reason-select').value = 'スタッフ希望';
+  document.getElementById('fixed-reason-other-wrap').style.display = 'none';
+  document.getElementById('fixed-reason-other').value = '';
+  document.getElementById('fixed-modal').classList.add('active');
+}
+
+function onFixedReasonChange() {
+  const sel = document.getElementById('fixed-reason-select').value;
+  document.getElementById('fixed-reason-other-wrap').style.display = sel === 'その他' ? '' : 'none';
+}
+
+function saveShiftFixed() {
+  if (!_fixedTargetKey) return;
+  const sel = document.getElementById('fixed-reason-select').value;
+  const other = document.getElementById('fixed-reason-other').value.trim();
+  if (sel === 'その他' && !other) { showToast('理由を入力してください'); return; }
+  const reason = sel === 'その他' ? other : sel;
+  shiftFixed[_fixedTargetKey] = { locked: true, reason };
+  fbSave('/shiftFixed', shiftFixed);
+  closeModal('fixed-modal');
+  renderMainShiftTable();
+  showToast(`🔒 固定しました：${reason}`);
+}
+
+function clearShiftFixed(key) {
+  const target = key || _fixedTargetKey;
+  if (!target || !shiftFixed[target]) return;
+  delete shiftFixed[target];
+  fbSave('/shiftFixed', shiftFixed);
+  renderMainShiftTable();
+  showToast('🔓 固定を解除しました');
 }
 
 // タブ切替（申請管理ページ内）
@@ -2463,6 +2570,9 @@ function approveUnavailRequest(reqId) {
           day: req.day, from: oldId, to: newPatId, at: Date.now() });
         fbSave('/shiftData', shiftData);
         fbSave('/shiftChangeLog', shiftChangeLog);
+        // 承認済み申請は自動的に固定フラグを設定
+        shiftFixed[shiftKey] = { locked: true, reason: `スタッフ希望申請承認済み（${req.staffName}）` };
+        fbSave('/shiftFixed', shiftFixed);
       }
       req.status = 'approved'; req.decidedAt = Date.now();
       req.decidedBy = currentStaffName || ADMIN.name;
@@ -2873,10 +2983,13 @@ function renderMainShiftTable() {
       else if (isOff)  off += 1;
       const bg = p ? p.bg : '#E9ECEF';
       const fg = p ? p.fg : '#6c757d';
+      const fixInfo = shiftFixed[key];
+      const lockTip = fixInfo ? (fixInfo.reason || '固定済み') : '';
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}"
         data-key="${key}"
-        style="user-select:none;">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${sName}">${sName.slice(0,2)}</span>
+        style="user-select:none;position:relative;"
+        oncontextmenu="return openFixedMenu(event,'${key}')">
+        <span class="shift-badge" style="background:${bg};color:${fg}" title="${sName}">${sName.slice(0,2)}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -3021,6 +3134,9 @@ function applyPaint(key) {
 
   // ローカルに反映（Firebase保存はしない）
   if (!newShiftId) delete shiftData[key]; else shiftData[key] = newShiftId;
+
+  // シフトを変更した場合は固定フラグを自動解除
+  if (shiftFixed[key]) { delete shiftFixed[key]; fbSave('/shiftFixed', shiftFixed); }
 
   // 元の値に戻った場合はpendingから除外
   const origVal = pendingShiftOriginal[key];
