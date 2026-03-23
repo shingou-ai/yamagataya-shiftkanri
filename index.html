@@ -2349,13 +2349,18 @@ function renderUnavailRequest() {
       ? `<span style="background:#FFF3CD;color:#856404;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">⏳ 審査中</span>`
       : r.status === 'approved'
         ? `<span style="background:#D4EDDA;color:#155724;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">✅ 承認</span>`
-        : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ 却下</span>`;
+        : r.status === 'cancelled'
+          ? `<span style="background:#E2E8F0;color:#475569;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">🚫 取消済</span>`
+          : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ 却下</span>`;
+    const cancelBtn = r.status === 'pending'
+      ? `<button onclick="cancelUnavailRequest('${id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;color:var(--text-muted);cursor:pointer;margin-left:6px;">取消</button>`
+      : '';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
       <div>
         <div style="font-weight:700;font-size:13px;">${dateStr} ${patBadge}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${r.reason || ''}</div>
       </div>
-      <div>${statusBadge}</div>
+      <div style="display:flex;align-items:center;">${statusBadge}${cancelBtn}</div>
     </div>`;
   }).join('');
   _renderUnavailNotifBanner();
@@ -2400,7 +2405,9 @@ function _renderUnavailNotifBanner() {
     const patHtml  = patLabel ? `「${patLabel}」` : '';
     const resHtml = n.status === 'approved'
       ? `<span style="color:var(--success);font-weight:700;">承認されました ✅${patHtml ? ' シフト表に'+patHtml+'が設定されました' : ''}</span>`
-      : '<span style="color:var(--danger);font-weight:700;">却下されました ❌ 管理者にご相談ください</span>';
+      : n.status === 'cancelled'
+        ? `<span style="color:#475569;font-weight:700;">取消されました 🚫${patHtml ? ' シフト表の'+patHtml+'が元に戻されました' : ''}</span>`
+        : '<span style="color:var(--danger);font-weight:700;">却下されました ❌ 管理者にご相談ください</span>';
     return `<div style="padding:4px 0;border-bottom:1px dashed #A5D6A7;">${dateStr} の勤務希望申請が ${resHtml}</div>`;
   }).join('');
   bannerEl.style.display = '';
@@ -2524,14 +2531,23 @@ function renderUnavailManage() {
           : (r.patternName ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">${r.patternName}</span>` : '');
         const badge = r.status === 'approved'
           ? `<span style="background:#D4EDDA;color:#155724;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">✅ 承認</span>`
-          : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ 却下</span>`;
+          : r.status === 'cancelled'
+            ? `<span style="background:#E2E8F0;color:#475569;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">🚫 取消済</span>`
+            : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ 却下</span>`;
+        // 承認済みのみ「承認取消」ボタンを表示
+        const cancelBtn = r.status === 'approved'
+          ? `<button onclick="cancelApprovedUnavailRequest('${id}')" style="background:none;border:1px solid var(--danger);border-radius:6px;padding:2px 10px;font-size:11px;color:var(--danger);cursor:pointer;margin-left:6px;">承認取消</button>`
+          : '';
+        const processedDate = r.cancelledAt
+          ? `取消日：${new Date(r.cancelledAt).toLocaleDateString('ja-JP')}`
+          : r.decidedAt ? `処理日：${new Date(r.decidedAt).toLocaleDateString('ja-JP')}` : '—';
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
           <div>
             <div style="font-weight:700;font-size:13px;">${r.staffName}　${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）${patBadge}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${r.reason || ''}</div>
-            <div style="font-size:11px;color:var(--text-muted);">処理日：${r.decidedAt ? new Date(r.decidedAt).toLocaleDateString('ja-JP') : '—'}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${processedDate}</div>
           </div>
-          <div>${badge}</div>
+          <div style="display:flex;align-items:center;">${badge}${cancelBtn}</div>
         </div>`;
       }).join('');
     }
@@ -2576,6 +2592,7 @@ function approveUnavailRequest(reqId) {
       }
       req.status = 'approved'; req.decidedAt = Date.now();
       req.decidedBy = currentStaffName || ADMIN.name;
+      req.prevPatternId = oldId; // 取消時の復元用
       unavailRequests[reqId] = req;
       fbSave(`/unavailRequests/${reqId}`, req);
       // スタッフへの結果通知
@@ -2607,6 +2624,87 @@ function rejectUnavailRequest(reqId) {
       fbSave('/unavailNotifLog', unavailNotifLog);
       showToast('却下しました');
       renderUnavailManage();
+    }
+  );
+}
+
+// ===== 勤務希望申請：スタッフによる取消（審査中のみ） =====
+function cancelUnavailRequest(reqId) {
+  const req = unavailRequests[reqId];
+  if (!req || req.status !== 'pending') return;
+  const w = dow(req.year, req.month, req.day);
+  const dateStr = `${req.year}年${req.month}月${req.day}日（${WEEKDAYS[w]}）`;
+  showConfirm(
+    '申請を取消しますか？',
+    `${dateStr} の勤務希望申請を取消します。\nシフト表への影響はありません（まだ反映されていないため）。`,
+    () => {
+      req.status = 'cancelled';
+      req.cancelledAt = Date.now();
+      unavailRequests[reqId] = req;
+      fbSave(`/unavailRequests/${reqId}`, req);
+      showToast('申請を取消しました');
+      renderUnavailRequest();
+      _updateUnavailDot();
+    }
+  );
+}
+
+// ===== 勤務希望申請：管理者による承認取消（承認済みをシフト表から戻す） =====
+function cancelApprovedUnavailRequest(reqId) {
+  const req = unavailRequests[reqId];
+  if (!req || req.status !== 'approved') return;
+  const pat = req.patternId ? patById(req.patternId) : null;
+  const patLabel = pat ? pat.name : (req.patternName || '設定済みパターン');
+  const prevId   = req.prevPatternId || null;  // 承認前のパターンID（nullなら未設定に戻す）
+  const prevPat  = prevId ? patById(prevId) : null;
+  const prevLabel = prevPat ? prevPat.name : '未設定';
+  const w = dow(req.year, req.month, req.day);
+  const dateStr = `${req.year}年${req.month}月${req.day}日（${WEEKDAYS[w]}）`;
+  showConfirm(
+    `${req.staffName}さんの承認を取消しますか？`,
+    `${dateStr}\n「${patLabel}」→「${prevLabel}」に戻します。\n有休残高も自動補正されます。`,
+    () => {
+      const shiftKey = `${req.year}-${req.month}-${req.day}-${req.staffId}`;
+      // シフト表を承認前に戻す
+      const appliedCost = _yukyuCost(req.patternId);
+      const prevCost    = _yukyuCost(prevId);
+      if (prevId) {
+        shiftData[shiftKey] = prevId;
+      } else {
+        delete shiftData[shiftKey];
+      }
+      // 有休残高を逆算して復元（有休コスト差分を加算して戻す）
+      const delta = appliedCost - prevCost;
+      if (delta !== 0) {
+        const s = STAFF.find(x => x.id === req.staffId);
+        if (s && s.paidLeaveBalance !== undefined) {
+          s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance + delta);
+          fbSaveStaffOverrides();
+        }
+      }
+      // 固定フラグも解除
+      if (shiftFixed[shiftKey]) {
+        delete shiftFixed[shiftKey];
+        fbSave('/shiftFixed', shiftFixed);
+      }
+      // shiftChangeLog に取消記録
+      shiftChangeLog.push({ staffId: req.staffId, year: req.year, month: req.month,
+        day: req.day, from: req.patternId, to: prevId, at: Date.now(), note: '勤務希望申請取消' });
+      fbSave('/shiftData', shiftData);
+      fbSave('/shiftChangeLog', shiftChangeLog);
+      // 申請ステータスを取消に更新
+      req.status    = 'cancelled';
+      req.cancelledAt = Date.now();
+      req.cancelledBy = currentStaffName || ADMIN.name;
+      unavailRequests[reqId] = req;
+      fbSave(`/unavailRequests/${reqId}`, req);
+      // スタッフへの取消通知
+      unavailNotifLog.push({ reqId, staffId: req.staffId, year: req.year, month: req.month,
+        day: req.day, patternId: req.patternId, patternName: patLabel, status: 'cancelled', at: Date.now() });
+      fbSave('/unavailNotifLog', unavailNotifLog);
+      showToast(`取消しました。${req.staffName}さんの${req.month}月${req.day}日を「${prevLabel}」に戻しました`);
+      renderUnavailManage();
+      if (document.getElementById('page-shift-table')?.classList.contains('active')) renderShiftTable();
     }
   );
 }
