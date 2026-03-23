@@ -487,8 +487,7 @@
       <div class="nav-section">
         <div class="nav-section-label">シフト管理</div>
         <div class="nav-item" onclick="showPage('shift-table')" id="nav-shift-table"><span class="nav-icon">📅</span>シフト表</div>
-        <div class="nav-item" onclick="showPage('shift-request')" id="nav-shift-request"><span class="nav-icon">📝</span>シフト希望確認 <span class="notif-dot"></span></div>
-        <div class="nav-item" onclick="showPage('unavail-manage')" id="nav-unavail-manage"><span class="nav-icon">🙋</span>勤務希望申請管理 <span class="notif-dot" id="unavail-admin-dot" style="display:none"></span></div>
+        <div class="nav-item" onclick="showPage('shift-request')" id="nav-shift-request"><span class="nav-icon">📋</span>申請管理 <span class="notif-dot" id="req-admin-dot-monthly" style="display:none"></span><span class="notif-dot" id="unavail-admin-dot" style="display:none;margin-left:2px;"></span></div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">マスター管理</div>
@@ -667,12 +666,43 @@
         </div>
       </div>
 
-      <!-- PAGE: シフト希望確認 -->
+      <!-- PAGE: 申請管理（シフト希望＋勤務希望申請 統合） -->
       <div class="page" id="page-shift-request">
         <div class="page-header">
-          <div><div class="page-title">📝 シフト希望確認</div><div class="page-subtitle">スタッフからの希望申請一覧</div></div>
+          <div><div class="page-title">📋 申請管理</div><div class="page-subtitle">スタッフからの各種申請を承認・却下できます</div></div>
         </div>
-        <div class="card"><div id="requests-list"></div></div>
+        <!-- タブ -->
+        <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);">
+          <button id="req-tab-monthly" onclick="switchRequestTab('monthly')"
+            style="padding:8px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--primary);color:var(--primary);margin-bottom:-2px;">
+            📅 シフト希望（月次）
+          </button>
+          <button id="req-tab-wish" onclick="switchRequestTab('wish')"
+            style="padding:8px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text-muted);margin-bottom:-2px;">
+            🙋 勤務希望申請 <span id="unavail-tab-dot" style="display:inline-block;width:7px;height:7px;background:var(--danger);border-radius:50%;margin-left:4px;vertical-align:middle;display:none;"></span>
+          </button>
+        </div>
+        <!-- タブコンテンツ1: シフト希望（月次） -->
+        <div id="req-tab-content-monthly">
+          <div class="card"><div id="requests-list"></div></div>
+        </div>
+        <!-- タブコンテンツ2: 勤務希望申請 -->
+        <div id="req-tab-content-wish" style="display:none;">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">⏳ 承認待ち <span id="unavail-pending-count" style="font-size:12px;color:var(--text-muted);"></span></div>
+            <div id="unavail-pending-list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📋 処理済み履歴</div>
+            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+              <label style="font-size:12px;color:var(--text-muted);">絞り込み：</label>
+              <select class="form-input" id="unavail-hist-filter" style="width:auto;font-size:13px;" onchange="renderUnavailManage()">
+                <option value="">全期間</option>
+              </select>
+            </div>
+            <div id="unavail-decided-list"></div>
+          </div>
+        </div>
       </div>
 
       <!-- PAGE: マイシフト (スタッフ) -->
@@ -887,28 +917,6 @@
         </div>
       </div>
 
-      <!-- PAGE: 勤務希望申請管理（管理者） -->
-      <div class="page" id="page-unavail-manage">
-        <div class="page-header">
-          <div><div class="page-title">🙋 勤務希望申請管理</div><div class="page-subtitle">承認すると希望パターンがシフト表に自動設定されます</div></div>
-        </div>
-        <!-- 承認待ち -->
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-title">⏳ 承認待ち <span id="unavail-pending-count" style="font-size:12px;color:var(--text-muted);"></span></div>
-          <div id="unavail-pending-list"></div>
-        </div>
-        <!-- 処理済み履歴 -->
-        <div class="card">
-          <div class="card-title">📋 処理済み履歴</div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-            <label style="font-size:12px;color:var(--text-muted);">絞り込み：</label>
-            <select class="form-input" id="unavail-hist-filter" style="width:auto;font-size:13px;" onchange="renderUnavailManage()">
-              <option value="">全期間</option>
-            </select>
-          </div>
-          <div id="unavail-decided-list"></div>
-        </div>
-      </div>
 
     </div><!-- /main-content -->
   </div><!-- /app-body -->
@@ -1881,17 +1889,16 @@ function fbStartListeners() {
       renderAccountSettings();
     }
   });
-  // 勤務不可申請のリアルタイム同期
+  // 勤務希望申請のリアルタイム同期
   _db.ref('/unavailRequests').on('value', snap => {
     unavailRequests = snap.val() || {};
     const pid = document.querySelector('.page.active')?.id;
-    if (pid === 'page-unavail-manage')  renderUnavailManage();
+    if (pid === 'page-shift-request')   renderUnavailManage();
     if (pid === 'page-unavail-request') renderUnavailRequest();
     // 管理者サイドバーの未処理ドットを更新
     _updateUnavailDot();
   });
-  _db.ref('/unavailNotifLog').on('value', snap => {
-    const d = snap.val(); if (!d) return;
+  _db.ref('/unavailNotifLog').on('value', snap => {    const d = snap.val(); if (!d) return;
     unavailNotifLog = Array.isArray(d) ? d : Object.values(d);
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-my-shift')        renderMyShift();
@@ -2077,10 +2084,30 @@ function _pendingUnavailCount() {
   return Object.values(unavailRequests).filter(r => r.status === 'pending').length;
 }
 function _updateUnavailDot() {
-  const dot = document.getElementById('unavail-admin-dot');
-  if (!dot) return;
   const cnt = _pendingUnavailCount();
-  dot.style.display = cnt > 0 ? '' : 'none';
+  // サイドバーの dot
+  const dot = document.getElementById('unavail-admin-dot');
+  if (dot) dot.style.display = cnt > 0 ? '' : 'none';
+  // タブ内の dot
+  const tabDot = document.getElementById('unavail-tab-dot');
+  if (tabDot) tabDot.style.display = cnt > 0 ? '' : 'none';
+}
+
+// タブ切替（申請管理ページ内）
+let _reqActiveTab = 'monthly';
+function switchRequestTab(tab) {
+  _reqActiveTab = tab;
+  const isMonthly = tab === 'monthly';
+  const btnM = document.getElementById('req-tab-monthly');
+  const btnW = document.getElementById('req-tab-wish');
+  const cntM = document.getElementById('req-tab-content-monthly');
+  const cntW = document.getElementById('req-tab-content-wish');
+  if (btnM) { btnM.style.borderBottomColor = isMonthly ? 'var(--primary)' : 'transparent'; btnM.style.color = isMonthly ? 'var(--primary)' : 'var(--text-muted)'; btnM.style.fontWeight = isMonthly ? '700' : '600'; }
+  if (btnW) { btnW.style.borderBottomColor = !isMonthly ? 'var(--primary)' : 'transparent'; btnW.style.color = !isMonthly ? 'var(--primary)' : 'var(--text-muted)'; btnW.style.fontWeight = !isMonthly ? '700' : '600'; }
+  if (cntM) cntM.style.display = isMonthly ? '' : 'none';
+  if (cntW) cntW.style.display = !isMonthly ? '' : 'none';
+  if (!isMonthly) renderUnavailManage();
+  else renderRequests();
 }
 
 // ===== 勤務希望申請：スタッフ側レンダリング =====
@@ -2446,7 +2473,7 @@ function approveUnavailRequest(reqId) {
         day: req.day, patternId: newPatId, patternName: patLabel, status: 'approved', at: Date.now() });
       fbSave('/unavailNotifLog', unavailNotifLog);
       showToast(`承認しました ✅ ${req.staffName}さんの${req.month}月${req.day}日に「${patLabel}」を設定`);
-      renderUnavailManage();
+      renderUnavailManage(); _updateUnavailDot();
     }
   );
 }
@@ -2651,7 +2678,7 @@ function renderPageContent(id) {
   else if (id==='all-shift')      renderAllShiftTable();
   else if (id==='shift-req-form') renderReqForm();
   else if (id==='account-settings') renderAccountSettings();
-  else if (id==='unavail-manage')  renderUnavailManage();
+  else if (id==='shift-request')   { renderRequests(); renderUnavailManage(); }
   else if (id==='unavail-request') renderUnavailRequest();
 }
 
