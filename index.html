@@ -515,7 +515,7 @@
       <div class="nav-section">
         <div class="nav-item" onclick="showPage('my-shift')" id="nav-my-shift"><span class="nav-icon">📅</span>マイシフト</div>
         <div class="nav-item" onclick="showPage('all-shift')" id="nav-all-shift"><span class="nav-icon">👥</span>全体シフト表</div>
-        <div class="nav-item" onclick="showPage('shift-req-form')" id="nav-shift-req-form"><span class="nav-icon">✏️</span>シフト希望提出</div>
+        <div class="nav-item" onclick="showPage('shift-req-form')" id="nav-shift-req-form"><span class="nav-icon">✏️</span>休み希望申請</div>
         <div class="nav-item" onclick="showPage('unavail-request')" id="nav-unavail-request"><span class="nav-icon">🙋</span>勤務希望申請</div>
         <div class="nav-item" onclick="showPage('staff-pw-change')" id="nav-staff-pw-change"><span class="nav-icon">🔒</span>パスワード変更</div>
       </div>
@@ -679,7 +679,7 @@
         <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);">
           <button id="req-tab-monthly" onclick="switchRequestTab('monthly')"
             style="padding:8px 18px;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--primary);color:var(--primary);margin-bottom:-2px;">
-            📅 シフト希望（月次）
+            📅 休み希望申請
           </button>
           <button id="req-tab-wish" onclick="switchRequestTab('wish')"
             style="padding:8px 18px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text-muted);margin-bottom:-2px;">
@@ -825,10 +825,10 @@
         </div>
       </div>
 
-      <!-- PAGE: シフト希望提出 -->
+      <!-- PAGE: 休み希望申請 -->
       <div class="page" id="page-shift-req-form">
         <div class="page-header">
-          <div><div class="page-title">✏️ シフト希望提出</div><div class="page-subtitle" id="req-form-subtitle">休みたい日を選んで提出してください（提出先：瓜生 渚）</div></div>
+          <div><div class="page-title">✏️ 休み希望申請</div><div class="page-subtitle" id="req-form-subtitle">休みたい日を選んで提出してください（提出先：瓜生 渚）</div></div>
         </div>
         <div class="card">
           <div class="card-title" id="req-form-card-title">📅 希望入力</div>
@@ -937,7 +937,7 @@
   <div class="bottom-nav" id="bottom-nav-staff" style="display:none">
     <button class="bottom-nav-item active" onclick="showPage('my-shift');setBottomActive(this)"><span class="bottom-nav-icon">📅</span>マイシフト</button>
     <button class="bottom-nav-item" onclick="showPage('all-shift');setBottomActive(this)"><span class="bottom-nav-icon">👥</span>全体表</button>
-    <button class="bottom-nav-item" onclick="showPage('shift-req-form');setBottomActive(this)"><span class="bottom-nav-icon">✏️</span>希望提出</button>
+    <button class="bottom-nav-item" onclick="showPage('shift-req-form');setBottomActive(this)"><span class="bottom-nav-icon">✏️</span>休み希望</button>
     <button class="bottom-nav-item" onclick="showPage('unavail-request');setBottomActive(this)"><span class="bottom-nav-icon">🙋</span>希望申請</button>
     <button class="bottom-nav-item" onclick="showPage('staff-pw-change');setBottomActive(this)"><span class="bottom-nav-icon">🔒</span>設定</button>
   </div>
