@@ -500,6 +500,7 @@
         <div class="nav-item" onclick="showPage('dept-role-manage')" id="nav-dept-role-manage"><span class="nav-icon">🏷️</span>部署・役職管理</div>
         <div class="nav-item" onclick="openOrderModal()" id="nav-display-order"><span class="nav-icon">↕</span>表示順マスタ</div>
         <div class="nav-item" onclick="showPage('paidleave')" id="nav-paidleave"><span class="nav-icon">📋</span>有給管理</div>
+        <div class="nav-item" onclick="showPage('meeting-manage')" id="nav-meeting-manage"><span class="nav-icon">📢</span>会議管理</div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">レポート</div>
@@ -726,6 +727,10 @@
           <div id="unavail-notif-body" style="font-size:13px;line-height:1.7;"></div>
           <button onclick="dismissUnavailNotif()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted);">×</button>
         </div>
+        <div id="meeting-notif" style="display:none;background:#EDE7F6;border-left:4px solid #7B1FA2;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px;">📢 今後の会議</div>
+          <div id="meeting-notif-body" style="font-size:13px;line-height:1.9;"></div>
+        </div>
         <div class="page-header">
           <div><div class="page-title">📅 マイシフト</div><div class="page-subtitle" id="my-shift-subtitle">田村 花子さんのシフト</div></div>
           <div class="month-nav">
@@ -822,6 +827,22 @@
               <button class="btn btn-primary" onclick="addSubAdmin()">追加</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- PAGE: 会議管理 -->
+      <div class="page" id="page-meeting-manage">
+        <div class="page-header">
+          <div><div class="page-title">📢 会議管理</div><div class="page-subtitle">経費会議・営業会議のスケジュール設定と出席者管理</div></div>
+          <button class="btn btn-primary" onclick="openAddMeetingModal()">＋ 会議を追加</button>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title">🏢 会議種別・出席者設定</div>
+          <div id="meeting-types-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;">読み込み中...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📅 会議スケジュール</div>
+          <div id="meeting-schedule-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;text-align:center;">会議スケジュールがありません</div></div>
         </div>
       </div>
 
@@ -1151,6 +1172,51 @@
     <div class="modal-footer" style="justify-content:center;gap:12px;">
       <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">キャンセル</button>
       <button class="btn btn-danger" id="confirm-ok-btn">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 会議スケジュール追加 -->
+<div class="modal-overlay" id="meeting-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">📢 会議を追加</div>
+    <div class="form-group">
+      <label>会議種別 <span style="color:var(--danger)">*</span></label>
+      <select class="form-input" id="meeting-modal-type"></select>
+    </div>
+    <div class="form-group">
+      <label>開催日 <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="date" id="meeting-modal-date">
+    </div>
+    <div class="form-group">
+      <label>開始時間</label>
+      <input class="form-input" type="time" id="meeting-modal-time" value="14:00">
+    </div>
+    <div class="form-group">
+      <label>場所</label>
+      <input class="form-input" id="meeting-modal-location" placeholder="例：会議室">
+    </div>
+    <div class="form-group">
+      <label>メモ</label>
+      <textarea class="form-input" id="meeting-modal-note" rows="2" style="resize:vertical;" placeholder="連絡事項など"></textarea>
+    </div>
+    <div id="meeting-modal-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('meeting-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMeeting()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 会議出席者編集 -->
+<div class="modal-overlay" id="meeting-type-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title" id="meeting-type-modal-title">出席者設定</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">会議に出席するスタッフを選択してください（今後の増減もここで変更できます）</div>
+    <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;" id="meeting-type-attendee-list"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('meeting-type-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMeetingTypeAttendees()">💾 保存</button>
     </div>
   </div>
 </div>
@@ -1485,6 +1551,9 @@ const UNAVAIL_REASONS = [
   '📋 その他',  // 「その他」選択時はテキスト入力を表示
 ];
 let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
+let meetingTypes       = {};  // typeId → { id, name, attendeeIds:[] }
+let meetings           = {};  // meetingId → { id, type, year, month, day, time, location, note, createdAt }
+let _editingMeetingTypeId = null;
 let unavailRequests    = {};  // reqId → requestObj
 let unavailNotifLog    = [];  // スタッフへの結果通知ログ
 let unavailNotifDismissed = {}; // staffId → dismissedAt(timestamp) // { staffId, year, month, day, from, to, at }
@@ -1930,6 +1999,23 @@ function fbStartListeners() {
     shiftFixed = snap.val() || {};
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-shift-table') renderMainShiftTable();
+  });
+
+  // 会議タイプのリアルタイム同期
+  _db.ref('/meetingTypes').on('value', snap => {
+    const d = snap.val();
+    if (!d) { _initMeetingTypes(); return; }
+    meetingTypes = d;
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-meeting-manage') renderMeetingManagePage();
+    if (pid === 'page-my-shift') renderMeetingNotif();
+  });
+  // 会議スケジュールのリアルタイム同期
+  _db.ref('/meetings').on('value', snap => {
+    meetings = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-meeting-manage') renderMeetingManagePage();
+    if (pid === 'page-my-shift') renderMeetingNotif();
   });
 
   // 勤務希望申請のリアルタイム同期
@@ -2896,6 +2982,7 @@ function renderPageContent(id) {
   else if (id==='account-settings') renderAccountSettings();
   else if (id==='shift-request')   { renderRequests(); renderUnavailManage(); }
   else if (id==='unavail-request') renderUnavailRequest();
+  else if (id==='meeting-manage')  renderMeetingManagePage();
 }
 
 // ===== MONTH =====
@@ -5160,6 +5247,8 @@ function renderMyShift() {
   }
   // 勤務不可申請結果通知バナー
   _renderUnavailNotifBanner();
+  // 会議通知バナー
+  renderMeetingNotif();
   const grid = document.getElementById('my-calendar-grid');
   let cells = '';
   for (let i=0; i<firstDow; i++) cells += `<div class="my-day other-month"><div class="my-day-num">—</div></div>`;
@@ -5249,6 +5338,193 @@ function renderMyShift() {
     </div>`;
   }
   upcoming.innerHTML = items || '<div style="color:var(--text-muted);text-align:center;padding:20px">今後のシフトはありません</div>';
+}
+
+// ===== 会議管理 =====
+
+// 初期meetingTypesデータをFirebaseに登録（/meetingTypesが空のとき一度だけ実行）
+function _initMeetingTypes() {
+  const defaultTypes = {
+    '経費会議': {
+      id: '経費会議', name: '経費会議',
+      attendeeIds: ['A00005','A00006','A00007','A00008','A00003','A00004','A00002','A00001','A00011','A00021']
+    },
+    '営業会議': {
+      id: '営業会議', name: '営業会議',
+      attendeeIds: ['A00005','A00006','A00007','A00008','A00003','A00004','A00002','A00001']
+    }
+  };
+  meetingTypes = defaultTypes;
+  fbSave('/meetingTypes', meetingTypes);
+}
+
+// 会議管理ページ描画
+function renderMeetingManagePage() {
+  // 会議種別・出席者セクション
+  const typesArea = document.getElementById('meeting-types-area');
+  if (typesArea) {
+    typesArea.innerHTML = Object.values(meetingTypes).map(mt => {
+      const attendees = (mt.attendeeIds || []).map(id => {
+        const s = STAFF.find(x => x.id === id);
+        return s ? `<span style="display:inline-block;background:var(--bg2);border-radius:20px;padding:2px 10px;font-size:12px;margin:2px 2px;">${s.name}</span>` : '';
+      }).join('');
+      return `<div style="display:flex;align-items:flex-start;gap:12px;padding:14px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+        <div style="min-width:90px;font-weight:700;font-size:14px;padding-top:4px;">🏷️ ${mt.name}</div>
+        <div style="flex:1;line-height:2;">${attendees || '<span style="color:var(--text-muted)">出席者未設定</span>'}</div>
+        <button class="btn btn-outline btn-sm" onclick="openMeetingTypeModal('${mt.id}')">✏️ 出席者を編集</button>
+      </div>`;
+    }).join('') || '<div style="color:var(--text-muted);padding:12px;">会議種別がありません</div>';
+  }
+
+  // スケジュールセクション
+  const schedArea = document.getElementById('meeting-schedule-area');
+  if (!schedArea) return;
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const sorted = Object.values(meetings).sort((a, b) =>
+    new Date(a.year, a.month-1, a.day) - new Date(b.year, b.month-1, b.day)
+  );
+  if (sorted.length === 0) {
+    schedArea.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;">会議スケジュールがありません<br><small>「＋ 会議を追加」から登録してください</small></div>';
+    return;
+  }
+  const WDAYS = ['日','月','火','水','木','金','土'];
+  schedArea.innerHTML = sorted.map(m => {
+    const d = new Date(m.year, m.month-1, m.day);
+    const isPast = d < today0;
+    const wd = WDAYS[d.getDay()];
+    const mt = meetingTypes[m.type] || {};
+    const attendeeCount = (mt.attendeeIds || []).length;
+    const statusBadge = isPast
+      ? `<span style="font-size:11px;color:var(--text-muted);padding:2px 8px;border:1px solid var(--border);border-radius:10px;">終了</span>`
+      : `<span style="font-size:11px;color:var(--primary);padding:2px 8px;border:1px solid var(--primary);border-radius:10px;">予定</span>`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 8px;border-bottom:1px solid var(--border);opacity:${isPast?'0.5':'1'};">
+      <div style="width:6px;min-width:6px;height:44px;background:var(--primary);border-radius:3px;"></div>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:14px;">${m.type}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+          ${m.year}年${m.month}月${m.day}日（${wd}）${m.time ? '&nbsp;' + m.time + '〜' : ''}${m.location ? '&nbsp;／&nbsp;' + m.location : ''}&nbsp;&nbsp;👥 ${attendeeCount}名
+        </div>
+        ${m.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📝 ${m.note}</div>` : ''}
+      </div>
+      ${statusBadge}
+      <button class="btn btn-danger btn-sm" onclick="deleteMeeting('${m.id}')">削除</button>
+    </div>`;
+  }).join('');
+}
+
+// 会議追加モーダルを開く
+function openAddMeetingModal() {
+  const sel = document.getElementById('meeting-modal-type');
+  sel.innerHTML = Object.values(meetingTypes).map(mt => `<option value="${mt.id}">${mt.name}</option>`).join('');
+  document.getElementById('meeting-modal-date').value = '';
+  document.getElementById('meeting-modal-time').value = '14:00';
+  document.getElementById('meeting-modal-location').value = '';
+  document.getElementById('meeting-modal-note').value = '';
+  document.getElementById('meeting-modal-error').style.display = 'none';
+  openModal('meeting-modal');
+}
+
+// 会議をFirebaseに保存
+function saveMeeting() {
+  const type     = document.getElementById('meeting-modal-type').value;
+  const dateVal  = document.getElementById('meeting-modal-date').value;
+  const time     = document.getElementById('meeting-modal-time').value;
+  const location = document.getElementById('meeting-modal-location').value.trim();
+  const note     = document.getElementById('meeting-modal-note').value.trim();
+  const errEl    = document.getElementById('meeting-modal-error');
+  if (!type)    { errEl.textContent = '会議種別を選択してください'; errEl.style.display = ''; return; }
+  if (!dateVal) { errEl.textContent = '開催日を入力してください';   errEl.style.display = ''; return; }
+  errEl.style.display = 'none';
+  const [year, month, day] = dateVal.split('-').map(Number);
+  const id = `meeting_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const meeting = { id, type, year, month, day, time, location, note, createdAt: Date.now() };
+  meetings[id] = meeting;
+  fbSave(`/meetings/${id}`, meeting);
+  closeModal('meeting-modal');
+  showToast(`📢 ${type}（${year}年${month}月${day}日）を追加しました`);
+}
+
+// 会議を削除
+function deleteMeeting(id) {
+  const m = meetings[id];
+  if (!m) return;
+  const WDAYS = ['日','月','火','水','木','金','土'];
+  const wd = WDAYS[new Date(m.year, m.month-1, m.day).getDay()];
+  showConfirm(
+    '会議を削除しますか？',
+    `${m.type}　${m.year}年${m.month}月${m.day}日（${wd}）`,
+    () => {
+      delete meetings[id];
+      _db.ref(`/meetings/${id}`).remove();
+      renderMeetingManagePage();
+      showToast('会議を削除しました');
+    },
+    '削除する'
+  );
+}
+
+// 会議種別の出席者編集モーダルを開く
+function openMeetingTypeModal(typeId) {
+  _editingMeetingTypeId = typeId;
+  const mt = meetingTypes[typeId] || {};
+  document.getElementById('meeting-type-modal-title').textContent = `✏️ ${mt.name}　出席者設定`;
+  const attendeeIds = mt.attendeeIds || [];
+  const activeStaff = getOrderedStaff();
+  document.getElementById('meeting-type-attendee-list').innerHTML = activeStaff.map(s => {
+    const checked = attendeeIds.includes(s.id);
+    const deptKey = s.dept.replace(/[（）]/g,'');
+    return `<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;cursor:pointer;border-radius:6px;transition:background .1s;"
+        onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" data-sid="${s.id}" ${checked?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary);">
+      <div style="flex:1;">
+        <span style="font-weight:600;">${s.name}</span>
+        <span class="dept-badge dept-${deptKey}" style="margin-left:6px;font-size:10px;">${s.dept}</span>
+      </div>
+    </label>`;
+  }).join('');
+  openModal('meeting-type-modal');
+}
+
+// 会議種別の出席者を保存
+function saveMeetingTypeAttendees() {
+  if (!_editingMeetingTypeId) return;
+  const checks = document.querySelectorAll('#meeting-type-attendee-list input[type=checkbox]');
+  const attendeeIds = Array.from(checks).filter(c => c.checked).map(c => c.dataset.sid);
+  meetingTypes[_editingMeetingTypeId].attendeeIds = attendeeIds;
+  fbSave(`/meetingTypes/${_editingMeetingTypeId}`, meetingTypes[_editingMeetingTypeId]);
+  closeModal('meeting-type-modal');
+  renderMeetingManagePage();
+  showToast(`${meetingTypes[_editingMeetingTypeId].name}の出席者を更新しました（${attendeeIds.length}名）`);
+}
+
+// スタッフ向け会議通知バナーを描画
+function renderMeetingNotif() {
+  const el = document.getElementById('meeting-notif');
+  const bodyEl = document.getElementById('meeting-notif-body');
+  if (!el || !bodyEl || !currentStaffId) return;
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // 今後60日以内で自分が出席する会議を抽出
+  const upcoming = Object.values(meetings).filter(m => {
+    const mt = meetingTypes[m.type] || {};
+    if (!(mt.attendeeIds || []).includes(currentStaffId)) return false;
+    const d = new Date(m.year, m.month-1, m.day);
+    const diff = (d - today0) / 86400000;
+    return diff >= 0 && diff <= 60;
+  }).sort((a, b) => new Date(a.year, a.month-1, a.day) - new Date(b.year, b.month-1, b.day));
+  if (upcoming.length === 0) { el.style.display = 'none'; return; }
+  const WDAYS = ['日','月','火','水','木','金','土'];
+  bodyEl.innerHTML = upcoming.map(m => {
+    const d = new Date(m.year, m.month-1, m.day);
+    const wd = WDAYS[d.getDay()];
+    const diff = Math.round((d - today0) / 86400000);
+    const diffStr = diff === 0 ? '<span style="color:var(--danger);font-weight:700;">今日</span>'
+                  : diff === 1 ? '<span style="color:var(--warning);font-weight:700;">明日</span>'
+                  : `<span style="color:var(--text-muted);">${diff}日後</span>`;
+    return `<div style="padding:2px 0;">📌 <strong>${m.year}年${m.month}月${m.day}日（${wd}）</strong>${m.time ? '&nbsp;' + m.time + '〜' : ''}&nbsp;<strong style="color:#7B1FA2;">${m.type}</strong>${m.location ? `（${m.location}）` : ''}&nbsp;${diffStr}</div>`;
+  }).join('');
+  el.style.display = '';
 }
 
 function dismissShiftNotif() {
