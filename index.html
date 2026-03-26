@@ -8,6 +8,7 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
   :root {
@@ -1603,40 +1604,43 @@ let _fbAuthReady = false;
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
-    // ログイン前に認証情報とスタッフデータを先読み
     _fbAuthReady = false;
-    Promise.all([
-      _db.ref('/adminConfig').once('value'),
-      _db.ref('/staffOverrides').once('value')
-    ]).then(([adminSnap, staffSnap]) => {
-      const c = adminSnap.val();
-      if (c) {
-        if (c.id) ADMIN.id = c.id;
-        if (c.password) ADMIN.password = c.password;
-      }
-      // パスワード未設定の場合はそのまま空（初回ログイン時に設定を促す）
-      // ※Firebaseに保存済みならc.passwordで復元済み
-      // スタッフのパスワードをFirebaseから復元（Object形式）
-      const so = staffSnap.val();
-      if (so && typeof so === 'object') {
-        Object.values(so).forEach(ovr => {
-          if (!ovr || !ovr.id) return;
-          const s = STAFF.find(x => x.id === ovr.id);
-          if (s && ovr.password) s.password = ovr.password;
-        });
-      }
-      _fbAuthReady = true;
-      // ログインボタンを有効化
-      const lb = document.querySelector('.login-btn');
-      if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
-      // 自動ログイン試行（認証データ読み込み完了後）
-      tryAutoLogin();
-    }).catch(() => {
-      _fbAuthReady = true;
-      const lb = document.querySelector('.login-btn');
-      if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
-      tryAutoLogin();
-    });
+    // 匿名認証でサインイン（セキュリティルール "auth != null" に対応）
+    // ユーザーには見えない自動処理。認証後にスタッフデータを読み込む。
+    firebase.auth().signInAnonymously()
+      .then(() => Promise.all([
+        _db.ref('/adminConfig').once('value'),
+        _db.ref('/staffOverrides').once('value')
+      ]))
+      .then(([adminSnap, staffSnap]) => {
+        const c = adminSnap.val();
+        if (c) {
+          if (c.id) ADMIN.id = c.id;
+          if (c.password) ADMIN.password = c.password;
+        }
+        // パスワード未設定の場合はそのまま空（初回ログイン時に設定を促す）
+        // ※Firebaseに保存済みならc.passwordで復元済み
+        // スタッフのパスワードをFirebaseから復元（Object形式）
+        const so = staffSnap.val();
+        if (so && typeof so === 'object') {
+          Object.values(so).forEach(ovr => {
+            if (!ovr || !ovr.id) return;
+            const s = STAFF.find(x => x.id === ovr.id);
+            if (s && ovr.password) s.password = ovr.password;
+          });
+        }
+        _fbAuthReady = true;
+        // ログインボタンを有効化
+        const lb = document.querySelector('.login-btn');
+        if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+        // 自動ログイン試行（認証データ読み込み完了後）
+        tryAutoLogin();
+      }).catch(() => {
+        _fbAuthReady = true;
+        const lb = document.querySelector('.login-btn');
+        if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+        tryAutoLogin();
+      });
   } catch(e) {
     console.warn('Firebase 初期化エラー:', e);
     const lb = document.querySelector('.login-btn');
