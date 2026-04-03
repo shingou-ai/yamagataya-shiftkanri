@@ -1065,7 +1065,7 @@
         <input type="checkbox" id="pattern-allday-input" onchange="toggleAlldayPattern()"> 終日（1日休み・時間入力を無効にする）
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
-        <input type="checkbox" id="pattern-halfday-input" onchange="toggleHalfdayPattern()"> 半日（0.5日休み・時間入力を無効にする）
+        <input type="checkbox" id="pattern-halfday-input" onchange="toggleHalfdayPattern()"> 半日（0.5日休み・出退勤時間も設定可）
       </label>
       <!-- 終日または半日チェック時のみ表示 -->
       <div id="pattern-yukyu-section" style="display:none;margin-top:10px;padding:8px 10px;background:var(--accent-light);border-radius:var(--radius-sm);">
@@ -4265,7 +4265,7 @@ function renderPatterns() {
       return `
       <div class="pattern-card" style="border-top-color:${p.bg};">
         <div class="pattern-name"><span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:14px">${p.name}</span>${catBadge}${halfdayBadge}${yukyuBadge}</div>
-        <div class="pattern-time" style="margin-top:8px">${p.allday ? '終日' : p.halfday ? '半日（0.5日）' : p.start+' 〜 '+p.end}</div>
+        <div class="pattern-time" style="margin-top:8px">${p.allday ? '終日' : p.halfday ? ('半日（0.5日）' + (p.start && p.end ? ' / ' + p.start + '〜' + p.end : '')) : p.start+' 〜 '+p.end}</div>
         <div class="pattern-hours">${p.hours > 0 ? p.hours+'h' : '—'}${p.breakMinutes > 0 ? `<span style="font-size:13px;color:var(--text-muted);font-weight:400;margin-left:6px">休憩${p.breakMinutes}分</span>` : ''}</div>
         <div class="pattern-actions">
           <button class="btn btn-outline btn-sm" onclick="openEditPattern(${i})">編集</button>
@@ -4382,13 +4382,17 @@ function toggleAlldayPattern() {
 function toggleHalfdayPattern() {
   const halfday = document.getElementById('pattern-halfday-input').checked;
   if (halfday) document.getElementById('pattern-allday-input').checked = false;
-  _disableTimeInputs(halfday, '半日');
+  // 半日は時間入力を無効にしない（出勤時間を設定可能）
+  // alldayの状態のみで時間入力の有効/無効を制御
+  const allday = document.getElementById('pattern-allday-input').checked;
+  _disableTimeInputs(allday, '終日');
 }
 function savePattern() {
   const idx = parseInt(document.getElementById('edit-pattern-idx').value);
   const allday  = document.getElementById('pattern-allday-input').checked;
   const halfday = document.getElementById('pattern-halfday-input').checked;
-  const disableTime = allday || halfday;
+  // 終日のみ時間入力を無効化（半日は時間入力可能）
+  const disableTime = allday;
   const breaks = [];
   const b1f = document.getElementById('pattern-break1-from').value;
   const b1t = document.getElementById('pattern-break1-to').value;
@@ -4419,8 +4423,8 @@ function savePattern() {
     dept:         document.getElementById('pattern-dept-input').value,
     category:     document.getElementById('pattern-category-input').value,
   };
-  // 実働時間を自動計算して設定
-  data.hours = (data.allday || data.halfday) ? 0 : calcPatternHours(data.start, data.end, data.breakMinutes);
+  // 実働時間を自動計算（終日=0、半日は設定した時間から計算、通常勤務は start〜end から計算）
+  data.hours = data.allday ? 0 : calcPatternHours(data.start, data.end, data.breakMinutes);
   if (!data.name) { showToast('パターン名を入力してください'); return; }
   if (idx < 0) {
     data.id = generatePatId();
