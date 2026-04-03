@@ -4771,7 +4771,7 @@ function confirmDeletePattern(idx) {
 
 // ===== REPORT =====
 // 区分の固定順序
-const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '通し', '夜勤', 'その他'];
+const REPORT_CATEGORIES = ['早番', '中抜け', '遅番', '通し', '夜勤', 'フレックス', 'その他'];
 
 function renderReport() {
   const { year, month } = currentMonth;
@@ -4792,7 +4792,7 @@ function renderReport() {
 
   // ── テーブルヘッダー ────────────────────────────────────
   // 区分ヘッダーに色付きバッジ
-  const CAT_TH_COLOR = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','通し':'#2E7D32','夜勤':'#4527A0','その他':'#455A64' };
+  const CAT_TH_COLOR = { '早番':'#1565C0','中抜け':'#F57F17','遅番':'#6A1B9A','通し':'#2E7D32','夜勤':'#4527A0','フレックス':'#5B21B6','その他':'#455A64' };
   const catThHtml = activeCats.map(c =>
     `<th style="text-align:center;white-space:nowrap;">
        <span style="display:inline-block;background:${CAT_TH_COLOR[c]||'#607D8B'};color:#fff;font-size:10px;padding:1px 7px;border-radius:10px;">${c}</span>
@@ -5096,6 +5096,7 @@ function grantPaidLeave(staffId) {
   const amount = pending.reduce((sum, g) => sum + g.days, 0);
   s.paidLeaveBalance = Math.min(PAID_LEAVE_MAX, (s.paidLeaveBalance || 0) + amount);
   s.lastGrantDate = fmtDate(pending[pending.length-1].date);
+  fbSaveStaffOverrides(); // Firebaseに確定保存
   showToast(`「${s.name}」に有休 ${amount}日 を付与しました ✅`);
   renderPaidLeavePage();
 }
