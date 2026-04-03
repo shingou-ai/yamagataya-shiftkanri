@@ -283,6 +283,22 @@
 
   /* TOAST */
   .toast { position:fixed; bottom:24px; right:24px; background:var(--primary); color:white; padding:14px 20px; border-radius:var(--radius); box-shadow:0 4px 20px rgba(0,0,0,.2); font-size:14px; z-index:2000; transform:translateY(80px); opacity:0; transition:all .3s; }
+  /* 申請新着アナウンスバナー */
+  #req-announce-container { position:fixed; top:16px; right:16px; z-index:3000; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+  .req-announce { pointer-events:all; display:flex; align-items:flex-start; gap:10px; background:#1e293b; color:#fff; padding:12px 14px; border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.35); font-size:13px; min-width:260px; max-width:320px; border-left:4px solid var(--primary); animation:req-announce-in .3s ease; }
+  .req-announce.type-monthly { border-left-color:#3B82F6; }
+  .req-announce.type-unavail  { border-left-color:#F59E0B; }
+  .req-announce-icon { font-size:22px; line-height:1; flex-shrink:0; margin-top:1px; }
+  .req-announce-body { flex:1; }
+  .req-announce-title { font-weight:700; font-size:13px; line-height:1.3; }
+  .req-announce-sub   { font-size:11px; color:#94A3B8; margin-top:3px; }
+  .req-announce-btn { display:flex; gap:6px; margin-top:8px; }
+  .req-announce-btn button { font-size:11px; padding:3px 9px; border-radius:6px; border:none; cursor:pointer; font-weight:600; }
+  .req-announce-btn .btn-goto   { background:var(--primary); color:#fff; }
+  .req-announce-btn .btn-goto:hover { filter:brightness(1.15); }
+  .req-announce-btn .btn-close  { background:#334155; color:#CBD5E1; }
+  .req-announce-btn .btn-close:hover { background:#475569; }
+  @keyframes req-announce-in { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
   .toast.show { transform:translateY(0); opacity:1; }
 
   /* BOTTOM NAV (mobile) */
@@ -1327,6 +1343,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="req-announce-container"></div>
 <div id="shift-time-tooltip"></div>
 
 <script>
@@ -2091,10 +2108,9 @@ function fbStartListeners() {
     const newPending = _pendingReqCount();
     // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
     if (currentRole === 'admin' && newPending > prevPending) {
-      const added = newPending - prevPending;
       const pid = document.querySelector('.page.active')?.id;
       if (pid !== 'page-shift-request') {
-        showToast(`📋 休み希望申請が${added}件 新着しました`);
+        showReqAnnounce('monthly', newPending);
       }
     }
     _updateAdminRequestBadge();
@@ -2157,10 +2173,9 @@ function fbStartListeners() {
     const newPending = _pendingUnavailCount();
     // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
     if (currentRole === 'admin' && newPending > prevPending) {
-      const added = newPending - prevPending;
       const pid = document.querySelector('.page.active')?.id;
       if (pid !== 'page-shift-request') {
-        showToast(`🙋 勤務希望申請が${added}件 新着しました`);
+        showReqAnnounce('unavail', newPending);
       }
     }
     const pid = document.querySelector('.page.active')?.id;
@@ -6302,6 +6317,37 @@ function showConfirm(text, sub, onOk, okLabel, danger) {
 }
 
 // ===== TOAST =====
+// 申請新着アナウンスバナー（右上・手動で閉じるまで残る）
+function showReqAnnounce(type, count) {
+  const container = document.getElementById('req-announce-container');
+  if (!container) return;
+  const isMonthly = type === 'monthly';
+  const icon  = isMonthly ? '📋' : '🙋';
+  const title = isMonthly
+    ? `休み希望申請が ${count}件 届いています`
+    : `勤務希望申請が ${count}件 届いています`;
+  const sub   = isMonthly
+    ? '申請管理 → 休み希望申請タブで確認できます'
+    : '申請管理 → 勤務希望申請タブで確認できます';
+  const typeClass = isMonthly ? 'type-monthly' : 'type-unavail';
+  const id = 'req-ann-' + type + '-' + Date.now();
+
+  const el = document.createElement('div');
+  el.className = `req-announce ${typeClass}`;
+  el.id = id;
+  el.innerHTML = `
+    <div class="req-announce-icon">${icon}</div>
+    <div class="req-announce-body">
+      <div class="req-announce-title">${title}</div>
+      <div class="req-announce-sub">${sub}</div>
+      <div class="req-announce-btn">
+        <button class="btn-goto" onclick="showPage('shift-request');document.getElementById('${id}').remove()">申請管理へ</button>
+        <button class="btn-close" onclick="document.getElementById('${id}').remove()">閉じる</button>
+      </div>
+    </div>`;
+  container.appendChild(el);
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
