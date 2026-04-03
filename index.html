@@ -2083,6 +2083,8 @@ async function fbLoad() {
   } catch(e) { console.warn('Firebase 読み込みエラー:', e); }
 }
 
+let _listenersInitialized = false; // リスナー初回発火を区別するフラグ
+
 function fbStartListeners() {
   if (!_fbReady) return;
   _db.ref('/shiftData').on('value', snap => {
@@ -2106,8 +2108,8 @@ function fbStartListeners() {
       REQUESTS = [];
     }
     const newPending = _pendingReqCount();
-    // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
-    if (currentRole === 'admin' && newPending > prevPending) {
+    // 初回発火はスキップ（fbLoadで既にデータ読込済み）。2回目以降の増加のみ通知
+    if (_listenersInitialized && currentRole === 'admin' && newPending > prevPending) {
       const pid = document.querySelector('.page.active')?.id;
       if (pid !== 'page-shift-request') {
         showReqAnnounce('monthly', newPending);
@@ -2171,8 +2173,8 @@ function fbStartListeners() {
     const prevPending = _pendingUnavailCount();
     unavailRequests = snap.val() || {};
     const newPending = _pendingUnavailCount();
-    // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
-    if (currentRole === 'admin' && newPending > prevPending) {
+    // 初回発火はスキップ。2回目以降の増加のみ通知
+    if (_listenersInitialized && currentRole === 'admin' && newPending > prevPending) {
       const pid = document.querySelector('.page.active')?.id;
       if (pid !== 'page-shift-request') {
         showReqAnnounce('unavail', newPending);
@@ -2212,6 +2214,18 @@ function fbStartListeners() {
     });
     if (document.querySelector('.page.active')?.id === 'page-paidleave') renderPaidLeavePage();
   });
+
+  // 全リスナー登録完了 → 初回発火スキップ解除（少し遅延して確実に初回イベントを処理させてから）
+  setTimeout(() => {
+    _listenersInitialized = true;
+    // ログイン時点で未処理申請があればバナー表示
+    if (currentRole === 'admin') {
+      const reqCnt    = _pendingReqCount();
+      const unavailCnt = _pendingUnavailCount();
+      if (reqCnt > 0)     showReqAnnounce('monthly', reqCnt);
+      if (unavailCnt > 0) showReqAnnounce('unavail', unavailCnt);
+    }
+  }, 1500);
 }
 
 // ===== EmailJS 設定 =====
