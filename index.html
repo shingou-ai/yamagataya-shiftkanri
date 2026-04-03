@@ -114,12 +114,24 @@
   /* 未保存セル */
   .shift-cell.pending-cell { outline:2px dashed var(--warning) !important; outline-offset:-2px; }
   .shift-cell.pending-cell .shift-badge::after { content:'✎'; font-size:7px; vertical-align:super; margin-left:1px; opacity:.7; }
+  /* 下書きセル（公開済み月・スタッフ未反映の変更） */
+  .shift-cell.draft-cell { outline:2px solid #7C3AED !important; outline-offset:-2px; background:#F5F3FF !important; }
+  .shift-cell.draft-cell .shift-badge::after { content:'📝'; font-size:7px; vertical-align:super; margin-left:1px; }
+  .draft-from-badge { display:block; font-size:9px; color:#7C3AED; line-height:1.1; margin-top:1px; text-decoration:line-through; opacity:.75; }
   /* 保存バー（画面下部固定） */
   #save-bar { display:none; align-items:center; gap:10px; background:#FFF8E1; border-top:2px solid var(--warning); padding:10px 20px; flex-wrap:wrap; position:fixed; bottom:0; left:0; right:0; z-index:9999; box-shadow:0 -2px 10px rgba(0,0,0,.15); }
   #save-bar.has-pending { display:flex; }
   #save-bar .save-count { font-size:13px; font-weight:700; color:var(--warning); flex:1; }
   .btn-save-shift { background:var(--success); color:white; font-weight:700; }
   .btn-save-shift:hover { opacity:.85; }
+  /* 下書き通知バー（公開済み月の未確定変更） */
+  #draft-bar { display:none; align-items:center; gap:10px; background:#EDE9FE; border-top:2px solid #7C3AED; padding:10px 20px; flex-wrap:wrap; position:fixed; bottom:0; left:0; right:0; z-index:9998; box-shadow:0 -2px 10px rgba(0,0,0,.12); }
+  #draft-bar.has-draft { display:flex; }
+  #draft-bar .draft-count { font-size:13px; font-weight:700; color:#5B21B6; flex:1; }
+  .btn-confirm-notify { background:#7C3AED; color:white; font-weight:700; border:none; border-radius:var(--radius-sm); padding:8px 16px; cursor:pointer; font-size:13px; }
+  .btn-confirm-notify:hover { background:#6D28D9; }
+  .btn-discard-draft { background:transparent; color:#7C3AED; font-weight:600; border:1.5px solid #7C3AED; border-radius:var(--radius-sm); padding:8px 12px; cursor:pointer; font-size:13px; }
+  .btn-discard-draft:hover { background:#EDE9FE; }
   .btn-published { background:var(--success); color:white; border-color:var(--success); font-weight:700; }
   .btn-published:hover { opacity:.85; }
   .palette-dept-tab {
@@ -567,6 +579,13 @@
           <span class="save-count" id="save-count-text">⚠️ 未保存の変更があります</span>
           <button class="btn btn-ghost btn-sm" onclick="discardShiftChanges()">↩ 取り消し</button>
           <button class="btn btn-save-shift btn btn-sm" onclick="saveShiftTable()">💾 保存する</button>
+        </div>
+
+        <!-- 下書き通知バー（公開済み月・スタッフ未反映） -->
+        <div id="draft-bar">
+          <span class="draft-count" id="draft-count-text">📝 下書き変更があります（スタッフにはまだ反映されていません）</span>
+          <button class="btn-discard-draft" onclick="discardDraftChanges()">↩ 破棄</button>
+          <button class="btn-confirm-notify" onclick="confirmNotifyStaff()">✅ 確定してスタッフに通知</button>
         </div>
 
         <!-- PALETTE BAR -->
@@ -1644,6 +1663,8 @@ let staffDisplayOrder = []; // staff IDs in display order
 let pendingShiftData     = {}; // 未保存の変更: key → 新しい値
 let pendingShiftOriginal = {}; // 各キーの変更前の値（保存時の from として使用）
 let publishedMonths      = {}; // 公開済み月: "YYYY-M" → true
+let draftShiftData       = {}; // 公開済み月の下書き変更: key → shiftId（スタッフ非表示）
+let draftShiftOriginal   = {}; // 下書き変更前の値: key → 元shiftId（通知時のfromとして使用）
 
 // 全画面共通：表示順マスタに従ったスタッフ一覧を返す
 function getOrderedStaff(includeInactive = false) {
@@ -1883,6 +1904,7 @@ async function fbLoad() {
     if (d.shiftChangeLog) shiftChangeLog = Array.isArray(d.shiftChangeLog) ? d.shiftChangeLog : Object.values(d.shiftChangeLog);
     if (d.reqNotifLog)    reqNotifLog    = Array.isArray(d.reqNotifLog)    ? d.reqNotifLog    : Object.values(d.reqNotifLog);
     if (d.shiftFixed)       shiftFixed       = d.shiftFixed;
+    if (d.draftShiftData)   { draftShiftData = d.draftShiftData; if (d.draftShiftOriginal) draftShiftOriginal = d.draftShiftOriginal; }
     if (d.flexTimes)        flexTimes        = d.flexTimes;
     if (d.flexTemplates && Array.isArray(d.flexTemplates) && d.flexTemplates.length > 0) flexTemplates = d.flexTemplates;
     if (d.unavailRequests)  unavailRequests  = d.unavailRequests;
@@ -2150,6 +2172,14 @@ function fbStartListeners() {
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-shift-table') renderMainShiftTable();
   });
+  _db.ref('/draftShiftData').on('value', snap => {
+    draftShiftData = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-shift-table') updateDraftBar();
+  });
+  _db.ref('/draftShiftOriginal').on('value', snap => {
+    draftShiftOriginal = snap.val() || {};
+  });
 
   // 会議タイプのリアルタイム同期
   _db.ref('/meetingTypes').on('value', snap => {
@@ -2301,6 +2331,7 @@ function _enterApp(isAuto) {
         purgeOldShiftData(); // 5年以上前の古いデータを自動削除
       }
       renderPublishBtn();
+      updateDraftBar();
       if (currentRole === 'admin') _updateAdminRequestBadge();
       updateRoleSwitchBtn(); // Firebase読み込み後にADMIN.staffIdが確定してから更新
       if (isAuto) showToast(`おかえりなさい、${currentStaffName}さん ✨`);
@@ -3243,6 +3274,7 @@ function _doChangeMonth(delta, context) {
   const rSub = document.getElementById('report-subtitle');
   if (rSub) rSub.textContent = `${currentMonth.year}年${currentMonth.month}月の勤務集計`;
   renderPublishBtn();
+  updateDraftBar();
   renderPageContent(context);
 }
 
@@ -3386,6 +3418,7 @@ function renderMainShiftTable() {
       const fixInfo = (shiftFixed[key] && !_pendingFixedOriginal.hasOwnProperty(key)) ? shiftFixed[key] : null;
       const lockTip = fixInfo ? (fixInfo.reason || '固定済み') : '';
       const _isPendingCell = pendingShiftData.hasOwnProperty(key);
+      const _isDraftCell   = !_isPendingCell && draftShiftData.hasOwnProperty(key);
       // フレックスパターンはセル内に出退勤時間を表示
       const _isFlexCell = p ? !!p.flex : false;
       let _badgeLabel, _badgeTitle;
@@ -3397,11 +3430,20 @@ function renderMainShiftTable() {
         _badgeLabel = sName.slice(0, 2);
         _badgeTitle = sName;
       }
-      tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}"
+      // 下書きセルの場合：変更前パターンを小さく表示
+      let _draftFromHtml = '';
+      if (_isDraftCell) {
+        const _fromId   = draftShiftOriginal[key] || '';
+        const _fromPat  = patById(_fromId);
+        const _fromName = _fromPat ? _fromPat.name : (_fromId ? _fromId : '未定');
+        _draftFromHtml  = `<span class="draft-from-badge" title="変更前: ${_fromName}">${_fromName.slice(0,2)}</span>`;
+        _badgeTitle     = `下書き変更: ${_fromName} → ${sName}（未通知）`;
+      }
+      tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}${_isDraftCell?' draft-cell':''}"
         data-key="${key}"
         style="user-select:none;position:relative;"
         oncontextmenu="return openFixedMenu(event,'${key}')">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${_badgeTitle}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}
+        <span class="shift-badge" style="background:${bg};color:${fg}" title="${_badgeTitle}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}${_draftFromHtml}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -3793,15 +3835,25 @@ function updateShukuchoCellWarn(dayKey, staffId, newShiftId) {
 // 未保存バー・保存ボタンの状態更新
 function updateSaveButton() {
   const count = Object.keys(pendingShiftData).length;
+  const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+  const isPublished = !!publishedMonths[monthKey];
   const bar = document.getElementById('save-bar');
   const btn = document.getElementById('btn-save-shift');
   const txt = document.getElementById('save-count-text');
+  const saveBtns = document.querySelectorAll('.btn-save-shift');
   if (bar) {
     if (count > 0) { bar.classList.add('has-pending'); document.body.style.paddingBottom = '60px'; }
     else { bar.classList.remove('has-pending'); document.body.style.paddingBottom = ''; }
   }
   if (btn) btn.style.display = count > 0 ? '' : 'none';
-  if (txt) txt.textContent = `⚠️ ${count}件の未保存変更があります。保存するまでスタッフには反映されません。`;
+  // 公開済み月はボタンラベルを「下書き保存」に変更
+  const saveLabel = isPublished ? '📝 下書き保存' : '💾 保存する';
+  const saveHint  = isPublished
+    ? `⚠️ ${count}件の未保存変更があります。下書き保存後、「確定してスタッフに通知」で通知されます。`
+    : `⚠️ ${count}件の未保存変更があります。保存するまでスタッフには反映されません。`;
+  saveBtns.forEach(b => b.textContent = saveLabel);
+  if (btn) btn.textContent = saveLabel;
+  if (txt) txt.textContent = saveHint;
 }
 
 // シフト表を保存してFirebaseに確定
@@ -3810,49 +3862,153 @@ function saveShiftTable() {
 
   const monthKey = `${currentMonth.year}-${currentMonth.month}`;
   const isPublished = !!publishedMonths[monthKey];
-
-  // 公開済みの月のみ変更ログを生成（未公開月は通知しない）
-  if (isPublished) {
-    Object.entries(pendingShiftData).forEach(([key, newShiftId]) => {
-      const fromShiftId = pendingShiftOriginal[key] || '';
-      const parts = key.split('-');
-      shiftChangeLog.push({
-        staffId: parts[3],
-        year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]),
-        from: fromShiftId, to: newShiftId, at: Date.now()
-      });
-    });
-  }
-
-  // Firebaseに保存
-  fbSave('/shiftData', shiftData);
-  if (isPublished) fbSave('/shiftChangeLog', shiftChangeLog);
-  fbSaveStaffOverrides(); // 有休残も確定
-  // フレックス時間を確定保存
-  if (Object.keys(pendingFlexData).length > 0) {
-    Object.assign(flexTimes, pendingFlexData);
-    fbSave('/flexTimes', flexTimes);
-  }
-
   const count = Object.keys(pendingShiftData).length;
-  pendingShiftData = {};
-  pendingShiftOriginal = {};
-  pendingFlexData = {};
-  pendingFlexOriginal = {};
-  _pendingFixedOriginal = {}; // 保存確定：🔒追跡データをリセット
-  _confirmedUnlocks.clear(); // 確認済みセットもリセット
-  updateSaveButton();
-
-  // pending-cell クラスを全て除去
-  document.querySelectorAll('.pending-cell').forEach(el => el.classList.remove('pending-cell'));
 
   if (isPublished) {
-    showToast(`✅ ${count}件のシフトを保存しました（スタッフに変更通知が届きます）`);
+    // ── 公開済み月：下書きとして保存（スタッフには反映しない） ──
+    Object.entries(pendingShiftData).forEach(([key, newShiftId]) => {
+      // draftShiftOriginal は最初の下書き変更時のみ記録（確定後に通知するfromとして使用）
+      if (!(key in draftShiftOriginal)) {
+        draftShiftOriginal[key] = pendingShiftOriginal[key] || shiftData[key] || '';
+      }
+      draftShiftData[key] = newShiftId;
+    });
+    fbSave('/draftShiftData', draftShiftData);
+    fbSave('/draftShiftOriginal', draftShiftOriginal);
+    // フレックス時間も下書き保存
+    if (Object.keys(pendingFlexData).length > 0) {
+      Object.assign(flexTimes, pendingFlexData);
+      fbSave('/flexTimes', flexTimes);
+    }
+    fbSaveStaffOverrides();
+    pendingShiftData = {};
+    pendingShiftOriginal = {};
+    pendingFlexData = {};
+    pendingFlexOriginal = {};
+    _pendingFixedOriginal = {};
+    _confirmedUnlocks.clear();
+    updateSaveButton();
+    updateDraftBar();
+    renderMainShiftTable(); // 下書きセルのハイライトを即時反映
+    showToast(`📝 ${count}件の変更を下書き保存しました。「確定してスタッフに通知」を押すまでスタッフには反映されません。`);
   } else {
+    // ── 未公開月：従来通り即時保存（スタッフへの通知なし） ──
+    fbSave('/shiftData', shiftData);
+    if (Object.keys(pendingFlexData).length > 0) {
+      Object.assign(flexTimes, pendingFlexData);
+      fbSave('/flexTimes', flexTimes);
+    }
+    fbSaveStaffOverrides();
+    pendingShiftData = {};
+    pendingShiftOriginal = {};
+    pendingFlexData = {};
+    pendingFlexOriginal = {};
+    _pendingFixedOriginal = {};
+    _confirmedUnlocks.clear();
+    updateSaveButton();
+    document.querySelectorAll('.pending-cell').forEach(el => el.classList.remove('pending-cell'));
     showToast(`✅ ${count}件のシフトを保存しました（未公開のためスタッフへの通知なし）`);
   }
   const hint = document.getElementById('shift-table-hint');
   if (hint) hint.textContent = 'パターンを選んでセルをクリックで入力 → 保存ボタンで確定';
+}
+
+// 下書きバーの表示更新
+function updateDraftBar() {
+  const bar = document.getElementById('draft-bar');
+  const txt = document.getElementById('draft-count-text');
+  if (!bar) return;
+  const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+  const isPublished = !!publishedMonths[monthKey];
+  if (!isPublished) { bar.classList.remove('has-draft'); return; }
+  const draftKeys = Object.keys(draftShiftData).filter(k => {
+    const parts = k.split('-');
+    return parseInt(parts[0]) === currentMonth.year && parseInt(parts[1]) === currentMonth.month;
+  });
+  if (draftKeys.length > 0) {
+    bar.classList.add('has-draft');
+    if (txt) txt.textContent = `📝 ${draftKeys.length}件の下書き変更があります（スタッフにはまだ反映されていません）`;
+  } else {
+    bar.classList.remove('has-draft');
+  }
+  // save-bar と draft-bar が重ならないようにオフセット調整
+  const saveBar = document.getElementById('save-bar');
+  const hasDraft = draftKeys.length > 0;
+  const hasPending = Object.keys(pendingShiftData).length > 0;
+  if (saveBar) saveBar.style.bottom = hasDraft ? '60px' : '0';
+  document.body.style.paddingBottom = (hasDraft || hasPending) ? (hasDraft && hasPending ? '120px' : '60px') : '';
+}
+
+// 下書き変更を確定してスタッフに通知
+function confirmNotifyStaff() {
+  const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+  const draftKeys = Object.keys(draftShiftData).filter(k => {
+    const parts = k.split('-');
+    return parseInt(parts[0]) === currentMonth.year && parseInt(parts[1]) === currentMonth.month;
+  });
+  if (draftKeys.length === 0) { showToast('通知する変更がありません'); return; }
+
+  showConfirm(
+    `${draftKeys.length}件の変更をスタッフに通知しますか？`,
+    '確定するとスタッフのマイシフトに変更通知が表示されます。この操作は取り消せません。',
+    () => {
+      // draftShiftData → shiftData へマージ
+      draftKeys.forEach(key => {
+        shiftData[key] = draftShiftData[key];
+        // shiftChangeLog に記録
+        const parts = key.split('-');
+        shiftChangeLog.push({
+          staffId: parts[3],
+          year: parseInt(parts[0]), month: parseInt(parts[1]), day: parseInt(parts[2]),
+          from: draftShiftOriginal[key] || '',
+          to: draftShiftData[key],
+          at: Date.now()
+        });
+        delete draftShiftData[key];
+        delete draftShiftOriginal[key];
+      });
+      fbSave('/shiftData', shiftData);
+      fbSave('/shiftChangeLog', shiftChangeLog);
+      fbSave('/draftShiftData', draftShiftData);
+      fbSave('/draftShiftOriginal', draftShiftOriginal);
+      updateDraftBar();
+      renderMainShiftTable();
+      showToast(`✅ ${draftKeys.length}件の変更を確定し、スタッフに通知しました`);
+    }
+  );
+}
+
+// 下書き変更を破棄（スタッフには通知しない、shiftDataも変更しない）
+function discardDraftChanges() {
+  const monthKey = `${currentMonth.year}-${currentMonth.month}`;
+  const draftKeys = Object.keys(draftShiftData).filter(k => {
+    const parts = k.split('-');
+    return parseInt(parts[0]) === currentMonth.year && parseInt(parts[1]) === currentMonth.month;
+  });
+  if (draftKeys.length === 0) { updateDraftBar(); return; }
+
+  showConfirm(
+    `${draftKeys.length}件の下書き変更を破棄しますか？`,
+    'シフト表は変更前の状態に戻ります（スタッフへの通知は行われません）。',
+    () => {
+      // shiftData を下書き前の状態に戻す
+      draftKeys.forEach(key => {
+        const origShiftId = draftShiftOriginal[key];
+        if (origShiftId !== undefined) {
+          if (origShiftId === '') delete shiftData[key];
+          else shiftData[key] = origShiftId;
+        }
+        delete draftShiftData[key];
+        delete draftShiftOriginal[key];
+      });
+      fbSave('/shiftData', shiftData);
+      fbSave('/draftShiftData', draftShiftData);
+      fbSave('/draftShiftOriginal', draftShiftOriginal);
+      updateDraftBar();
+      renderMainShiftTable();
+      showToast(`↩ ${draftKeys.length}件の下書きを破棄しました`);
+    }
+  );
 }
 
 // ===== 公開フラグ管理 =====
