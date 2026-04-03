@@ -301,6 +301,7 @@
 
   /* NOTIF DOT */
   .notif-dot { width:8px; height:8px; background:var(--danger); border-radius:50%; display:inline-block; margin-left:4px; }
+  .req-badge { min-width:17px; height:17px; background:var(--danger); color:#fff; border-radius:9px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; padding:0 4px; margin-left:5px; line-height:1; vertical-align:middle; box-shadow:0 1px 3px rgba(0,0,0,.25); }
 
   /* ── PC: シフト表を1画面に収める ── */
   @media (min-width:769px) {
@@ -492,7 +493,7 @@
       <div class="nav-section">
         <div class="nav-section-label">シフト管理</div>
         <div class="nav-item" onclick="showPage('shift-table')" id="nav-shift-table"><span class="nav-icon">📅</span>シフト表</div>
-        <div class="nav-item" onclick="showPage('shift-request')" id="nav-shift-request"><span class="nav-icon">📋</span>申請管理 <span class="notif-dot" id="req-admin-dot-monthly" style="display:none"></span><span class="notif-dot" id="unavail-admin-dot" style="display:none;margin-left:2px;"></span></div>
+        <div class="nav-item" onclick="showPage('shift-request')" id="nav-shift-request"><span class="nav-icon">📋</span>申請管理 <span class="req-badge" id="req-admin-badge" style="display:none"></span></div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">マスター管理</div>
@@ -826,6 +827,33 @@
             <div style="display:flex;gap:8px;">
               <select class="form-input" id="sub-admin-select" style="flex:1;"></select>
               <button class="btn btn-primary" onclick="addSubAdmin()">追加</button>
+            </div>
+          </div>
+          <div class="card" style="flex:1;min-width:280px;max-width:480px;">
+            <div class="card-title">⏰ フレックステンプレート</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">シフト入力時にワンタップで選べる時間テンプレートを登録します。</div>
+            <div id="flex-tpl-list" style="margin-bottom:14px;"></div>
+            <div style="display:grid;gap:8px;">
+              <div style="display:flex;gap:8px;">
+                <input class="form-input" id="flex-tpl-name" placeholder="テンプレート名（例: 標準勤務）" style="flex:1;">
+              </div>
+              <div style="display:flex;gap:8px;">
+                <div style="flex:1;">
+                  <label style="font-size:11px;color:var(--text-muted);margin-bottom:4px;display:block;">出勤</label>
+                  <input class="form-input" type="time" id="flex-tpl-start">
+                </div>
+                <div style="flex:1;">
+                  <label style="font-size:11px;color:var(--text-muted);margin-bottom:4px;display:block;">退勤</label>
+                  <input class="form-input" type="time" id="flex-tpl-end">
+                </div>
+                <div style="flex:0 0 90px;">
+                  <label style="font-size:11px;color:var(--text-muted);margin-bottom:4px;display:block;">休憩(分)</label>
+                  <input class="form-input" type="number" id="flex-tpl-break" min="0" max="480" step="15" placeholder="60">
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;">
+                <button class="btn btn-primary" onclick="addFlexTemplate()">＋ 追加</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1243,6 +1271,39 @@
   </div>
 </div>
 
+<!-- フレックス時間入力モーダル -->
+<div class="modal-overlay" id="flex-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title">⏰ フレックス勤務時間入力</div>
+      <button class="modal-close" onclick="closeFlexModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">テンプレートから選ぶか、直接時間を入力してください。</div>
+      <div id="flex-template-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
+      <div style="display:flex;gap:12px;">
+        <div class="form-group" style="flex:1;margin-bottom:10px;">
+          <label>出勤時間</label>
+          <input class="form-input" type="time" id="flex-start-input" oninput="updateFlexHoursPreview()">
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:10px;">
+          <label>退勤時間</label>
+          <input class="form-input" type="time" id="flex-end-input" oninput="updateFlexHoursPreview()">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>休憩（分）</label>
+        <input class="form-input" type="number" id="flex-break-input" min="0" max="480" step="15" placeholder="60" oninput="updateFlexHoursPreview()" style="width:120px;">
+      </div>
+      <div id="flex-hours-preview" style="font-size:13px;color:var(--primary);font-weight:600;min-height:20px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeFlexModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="confirmFlexTime()">✓ セットする</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div id="shift-time-tooltip"></div>
 
@@ -1352,6 +1413,8 @@ let PATTERNS = [
   { id:'P024', name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用', category:'遅番' },
   // ── 夜警 ──
   { id:'P025', name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警', category:'夜勤' },
+  // ── フレックス（テンプレート呼び出し） ──
+  { id:'PFLEX', name:'フレックス', start:'', end:'', hours:0, breakMinutes:60, breaks:[], bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス' },
 ];
 
 // ===== パターンID ヘルパー =====
@@ -1376,6 +1439,22 @@ function isYukyuPat(id) {
 }
 // 半日有休パターンかどうか判定
 function isHalfYukyuPat(id) { return isHalfDayPat(id) && isYukyuPat(id); }
+// フレックスパターンかどうか判定
+function isFlexPat(id) { if (!id) return false; const p = patById(id); return p ? !!p.flex : false; }
+// フレックス時間のセル表示ラベル（例: "9-18"）
+function flexCellLabel(key) {
+  const ft = pendingFlexData[key] || flexTimes[key];
+  if (!ft || !ft.start || !ft.end) return 'FX';
+  const s = ft.start.replace(/^0/, '').replace(':00', '');
+  const e = ft.end.replace(/^0/, '').replace(':00', '');
+  return `${s}-${e}`;
+}
+// フレックス実働時間（時間単位）
+function calcFlexHours(key) {
+  const ft = pendingFlexData[key] || flexTimes[key];
+  if (!ft || !ft.start || !ft.end) return 0;
+  return calcPatternHours(ft.start, ft.end, ft.breakMinutes || 0);
+}
 // 有休コスト取得（フル有休=1, 半日有休=0.5, それ以外=0）
 function _yukyuCost(shiftId) {
   if (!shiftId) return 0;
@@ -1552,6 +1631,10 @@ const UNAVAIL_REASONS = [
   '📋 その他',  // 「その他」選択時はテキスト入力を表示
 ];
 let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
+let flexTimes          = {};  // key(YYYY-M-D-staffId) → { start:'09:00', end:'18:00', breakMinutes:60 }
+let flexTemplates      = [];  // [{ id, name, start, end, breakMinutes }]
+let pendingFlexData    = {};  // 未保存フレックス時間: key → { start, end, breakMinutes }
+let pendingFlexOriginal= {};  // 各キーの変更前のフレックス時間（discard用）
 let meetingTypes       = {};  // typeId → { id, name, attendeeIds:[] }
 let meetings           = {};  // meetingId → { id, type, year, month, day, time, location, note, createdAt }
 let _editingMeetingTypeId = null;
@@ -1757,6 +1840,8 @@ async function fbLoad() {
     if (d.shiftChangeLog) shiftChangeLog = Array.isArray(d.shiftChangeLog) ? d.shiftChangeLog : Object.values(d.shiftChangeLog);
     if (d.reqNotifLog)    reqNotifLog    = Array.isArray(d.reqNotifLog)    ? d.reqNotifLog    : Object.values(d.reqNotifLog);
     if (d.shiftFixed)       shiftFixed       = d.shiftFixed;
+    if (d.flexTimes)        flexTimes        = d.flexTimes;
+    if (d.flexTemplates && Array.isArray(d.flexTemplates) && d.flexTemplates.length > 0) flexTemplates = d.flexTemplates;
     if (d.unavailRequests)  unavailRequests  = d.unavailRequests;
     if (d.unavailNotifLog)  unavailNotifLog  = Array.isArray(d.unavailNotifLog) ? d.unavailNotifLog : Object.values(d.unavailNotifLog);
     if (d.unavailNotifDismissed) Object.assign(unavailNotifDismissed, d.unavailNotifDismissed);
@@ -1843,6 +1928,12 @@ async function fbLoad() {
           migrated = true;
         }
       });
+      // フレックスパターン（PFLEX）が存在しなければ自動追加
+      if (!PATTERNS.find(p => p.flex)) {
+        PATTERNS.push({ id:'PFLEX', name:'フレックス', start:'', end:'', hours:0, breakMinutes:60, breaks:[],
+          bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス' });
+        migrated = true;
+      }
       // 午前有休・午後有休 パターンが存在しなければ自動作成
       const halfYukyuDefs = [
         { name:'午前有休', bg:'#C3E6CB', fg:'#0B4F23' },
@@ -1964,12 +2055,23 @@ function fbStartListeners() {
     if (pid === 'page-shift-table') renderMainShiftTable();
   });
   _db.ref('/requests').on('value', snap => {
+    const prevPending = _pendingReqCount();
     const d = snap.val();
     if (d && !d._empty) {
       REQUESTS = (Array.isArray(d) ? d : Object.values(d)).filter(r => r && !r._empty);
     } else {
       REQUESTS = [];
     }
+    const newPending = _pendingReqCount();
+    // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
+    if (currentRole === 'admin' && newPending > prevPending) {
+      const added = newPending - prevPending;
+      const pid = document.querySelector('.page.active')?.id;
+      if (pid !== 'page-shift-request') {
+        showToast(`📋 休み希望申請が${added}件 新着しました`);
+      }
+    }
+    _updateAdminRequestBadge();
     if (document.querySelector('.page.active')?.id === 'page-shift-request') renderRequests();
   });
   _db.ref('/shiftChangeLog').on('value', snap => {
@@ -2024,18 +2126,41 @@ function fbStartListeners() {
 
   // 勤務希望申請のリアルタイム同期
   _db.ref('/unavailRequests').on('value', snap => {
+    const prevPending = _pendingUnavailCount();
     unavailRequests = snap.val() || {};
+    const newPending = _pendingUnavailCount();
+    // 管理者ログイン中かつ申請管理ページ以外にいるとき、新規申請をトーストで通知
+    if (currentRole === 'admin' && newPending > prevPending) {
+      const added = newPending - prevPending;
+      const pid = document.querySelector('.page.active')?.id;
+      if (pid !== 'page-shift-request') {
+        showToast(`🙋 勤務希望申請が${added}件 新着しました`);
+      }
+    }
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-shift-request')   renderUnavailManage();
     if (pid === 'page-unavail-request') renderUnavailRequest();
-    // 管理者サイドバーの未処理ドットを更新
-    _updateUnavailDot();
+    // 管理者サイドバーの統合バッジを更新
+    _updateAdminRequestBadge();
   });
   _db.ref('/unavailNotifLog').on('value', snap => {    const d = snap.val(); if (!d) return;
     unavailNotifLog = Array.isArray(d) ? d : Object.values(d);
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-my-shift')        renderMyShift();
     if (pid === 'page-unavail-request') renderUnavailRequest();
+  });
+  // フレックス時間のリアルタイム同期
+  _db.ref('/flexTimes').on('value', snap => {
+    flexTimes = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-shift-table') renderMainShiftTable();
+    if (pid === 'page-all-shift')   renderAllShiftTable();
+  });
+  // フレックステンプレートのリアルタイム同期
+  _db.ref('/flexTemplates').on('value', snap => {
+    const d = snap.val();
+    if (d && Array.isArray(d)) flexTemplates = d;
+    if (document.querySelector('.page.active')?.id === 'page-account-settings') renderFlexTemplates();
   });
   // staffOverrides（有休残など）のリアルタイム同期
   _db.ref('/staffOverrides').on('value', snap => {
@@ -2121,6 +2246,7 @@ function _enterApp(isAuto) {
         purgeOldShiftData(); // 5年以上前の古いデータを自動削除
       }
       renderPublishBtn();
+      if (currentRole === 'admin') _updateAdminRequestBadge();
       updateRoleSwitchBtn(); // Firebase読み込み後にADMIN.staffIdが確定してから更新
       if (isAuto) showToast(`おかえりなさい、${currentStaffName}さん ✨`);
       showPage(currentRole==='admin' ? 'shift-table' : 'my-shift');
@@ -2218,15 +2344,27 @@ function _countMonthlyUnavail(staffId, year, month) {
 function _pendingUnavailCount() {
   return Object.values(unavailRequests).filter(r => r.status === 'pending').length;
 }
-function _updateUnavailDot() {
-  const cnt = _pendingUnavailCount();
-  // サイドバーの dot
-  const dot = document.getElementById('unavail-admin-dot');
-  if (dot) dot.style.display = cnt > 0 ? '' : 'none';
-  // タブ内の dot
-  const tabDot = document.getElementById('unavail-tab-dot');
-  if (tabDot) tabDot.style.display = cnt > 0 ? '' : 'none';
+function _pendingReqCount() {
+  return REQUESTS.filter(r => r.status === 'pending').length;
 }
+// 管理者サイドバー「申請管理」の統合バッジを更新
+function _updateAdminRequestBadge() {
+  const total = _pendingReqCount() + _pendingUnavailCount();
+  const badge = document.getElementById('req-admin-badge');
+  if (badge) {
+    if (total > 0) {
+      badge.textContent = total;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+  // タブ内のドット（勤務希望申請タブ）
+  const tabDot = document.getElementById('unavail-tab-dot');
+  if (tabDot) tabDot.style.display = _pendingUnavailCount() > 0 ? '' : 'none';
+}
+// 後方互換（既存の呼び出し箇所はそのまま動作）
+function _updateUnavailDot() { _updateAdminRequestBadge(); }
 
 // ===== シフト固定フラグ =====
 let _fixedTargetKey = null; // 現在操作対象のセルキー
@@ -2467,7 +2605,7 @@ function onUnavailPatternChange() {
   if (!pid) { preview.innerHTML = ''; return; }
   const p = patById(pid);
   if (!p) { preview.innerHTML = ''; return; }
-  const info = p.allday ? '終日休み' : p.halfday ? '半日（0.5日）' : (p.start && p.end ? `${p.start} 〜 ${p.end}` : '');
+  const info = p.flex ? 'フレックス（時間自由設定）' : p.allday ? '終日休み' : p.halfday ? '半日（0.5日）' : (p.start && p.end ? `${p.start} 〜 ${p.end}` : '');
   preview.innerHTML = `<span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:13px;padding:3px 12px;">${p.name}</span>
     ${info ? `<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">${info}</span>` : ''}`;
 }
@@ -3193,11 +3331,22 @@ function renderMainShiftTable() {
       const fixInfo = (shiftFixed[key] && !_pendingFixedOriginal.hasOwnProperty(key)) ? shiftFixed[key] : null;
       const lockTip = fixInfo ? (fixInfo.reason || '固定済み') : '';
       const _isPendingCell = pendingShiftData.hasOwnProperty(key);
+      // フレックスパターンはセル内に出退勤時間を表示
+      const _isFlexCell = p ? !!p.flex : false;
+      let _badgeLabel, _badgeTitle;
+      if (_isFlexCell) {
+        const ft = pendingFlexData[key] || flexTimes[key];
+        _badgeLabel = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        _badgeTitle = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス（時間未設定）';
+      } else {
+        _badgeLabel = sName.slice(0, 2);
+        _badgeTitle = sName;
+      }
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}"
         data-key="${key}"
         style="user-select:none;position:relative;"
         oncontextmenu="return openFixedMenu(event,'${key}')">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${sName}">${sName.slice(0,2)}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}
+        <span class="shift-badge" style="background:${bg};color:${fg}" title="${_badgeTitle}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -3238,6 +3387,112 @@ function renderMainShiftTable() {
   }
   tfoot += '<td colspan="2"></td></tr></tfoot>';
   table.innerHTML = thead + tbody + tfoot;
+}
+
+// ===== フレックスモーダル =====
+let _flexModalKey = null;
+
+function openFlexModal(key) {
+  _flexModalKey = key;
+  // テンプレートボタンを描画
+  const btns = document.getElementById('flex-template-btns');
+  if (btns) {
+    if (flexTemplates.length === 0) {
+      btns.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">テンプレートなし（アカウント設定で追加できます）</span>';
+    } else {
+      btns.innerHTML = flexTemplates.map(t =>
+        `<button class="btn btn-outline btn-sm" style="font-size:12px;line-height:1.4;" onclick="applyFlexTemplate('${t.id}')">
+          ${t.name}<br><span style="font-size:10px;color:var(--text-muted);">${t.start}〜${t.end}</span>
+        </button>`
+      ).join('');
+    }
+  }
+  // 既存のフレックス時間があれば初期値としてセット
+  const existing = pendingFlexData[key] || flexTimes[key];
+  document.getElementById('flex-start-input').value  = existing ? (existing.start  || '') : '';
+  document.getElementById('flex-end-input').value    = existing ? (existing.end    || '') : '';
+  document.getElementById('flex-break-input').value  = existing ? (existing.breakMinutes ?? 60) : 60;
+  updateFlexHoursPreview();
+  document.getElementById('flex-modal').classList.add('open');
+}
+
+function closeFlexModal() {
+  document.getElementById('flex-modal').classList.remove('open');
+  _flexModalKey = null;
+}
+
+function applyFlexTemplate(tplId) {
+  const t = flexTemplates.find(x => x.id === tplId);
+  if (!t) return;
+  document.getElementById('flex-start-input').value = t.start;
+  document.getElementById('flex-end-input').value   = t.end;
+  document.getElementById('flex-break-input').value = t.breakMinutes ?? 60;
+  updateFlexHoursPreview();
+}
+
+function updateFlexHoursPreview() {
+  const s = document.getElementById('flex-start-input')?.value;
+  const e = document.getElementById('flex-end-input')?.value;
+  const b = parseInt(document.getElementById('flex-break-input')?.value) || 0;
+  const preview = document.getElementById('flex-hours-preview');
+  if (!preview) return;
+  if (s && e) {
+    const h = calcPatternHours(s, e, b);
+    preview.textContent = h > 0 ? `実働: ${h.toFixed(1)} 時間` : '';
+  } else {
+    preview.textContent = '';
+  }
+}
+
+function confirmFlexTime() {
+  if (!_flexModalKey) return;
+  const start = document.getElementById('flex-start-input').value;
+  const end   = document.getElementById('flex-end-input').value;
+  const breakMinutes = parseInt(document.getElementById('flex-break-input').value) || 0;
+  if (!start || !end) { showToast('出勤・退勤時間を入力してください'); return; }
+  const key = _flexModalKey;
+  closeFlexModal();
+  _applyFlexPaint(key, { start, end, breakMinutes });
+}
+
+function _applyFlexPaint(key, flexTime) {
+  const flexPat = patById('PFLEX') || PATTERNS.find(p => p.flex);
+  if (!flexPat) return;
+  const flexId = flexPat.id;
+  const currentShiftId = shiftData[key] || '';
+
+  // 固定フラグを解除（discard時に復元できるよう元データを保存）
+  if (shiftFixed[key]) {
+    if (!_pendingFixedOriginal.hasOwnProperty(key)) {
+      _pendingFixedOriginal[key] = JSON.parse(JSON.stringify(shiftFixed[key]));
+    }
+    delete shiftFixed[key];
+    fbSave('/shiftFixed', shiftFixed);
+  }
+
+  // 初回変更時に元の値を記録
+  if (!pendingShiftOriginal.hasOwnProperty(key))  pendingShiftOriginal[key]  = currentShiftId;
+  if (!pendingFlexOriginal.hasOwnProperty(key))   pendingFlexOriginal[key]   = flexTimes[key] ? JSON.parse(JSON.stringify(flexTimes[key])) : null;
+
+  // ローカルに反映
+  shiftData[key]        = flexId;
+  pendingShiftData[key] = flexId;
+  pendingFlexData[key]  = flexTime;
+
+  // セル表示更新
+  const cell = document.querySelector(`[data-key="${key}"]`);
+  if (cell) {
+    const s = flexTime.start.replace(/^0/, '').replace(':00', '');
+    const e = flexTime.end.replace(/^0/, '').replace(':00', '');
+    const label = `${s}-${e}`;
+    cell.innerHTML = `<span class="shift-badge" style="background:${flexPat.bg};color:${flexPat.fg}" title="フレックス: ${flexTime.start}〜${flexTime.end}">${label}</span>`;
+    cell.classList.add('pending-cell');
+  }
+
+  updateSaveButton();
+  updateTableTotals();
+  const parts = key.split('-');
+  updateStaffRowTotals(parts[3]);
 }
 
 // ===== PAINT HANDLERS =====
@@ -3338,6 +3593,23 @@ let _pendingFixedOriginal = {};
 function applyPaint(key) {
   const currentShiftId = shiftData[key] || '';
   const newShiftId = selectedPalette === null ? '' : selectedPalette;
+
+  // フレックスパターン → 時間入力ダイアログを開く（毎回ダイアログを表示）
+  if (isFlexPat(newShiftId)) {
+    if (shiftFixed[key] && !_confirmedUnlocks.has(key)) {
+      const reason = shiftFixed[key].reason || '';
+      showConfirm(
+        '固定済みシフトを変更しますか？',
+        `🔒 このセルは固定されています${reason ? `\n理由：${reason}` : ''}\n変更すると固定が解除されます。`,
+        () => { _confirmedUnlocks.add(key); applyPaint(key); },
+        '変更する', false
+      );
+      return;
+    }
+    openFlexModal(key);
+    return;
+  }
+
   if (currentShiftId === newShiftId) return;
 
   // 🔒固定済みセルへの変更は確認が必要（このセッションで未確認の場合のみ）
@@ -3501,10 +3773,17 @@ function saveShiftTable() {
   fbSave('/shiftData', shiftData);
   if (isPublished) fbSave('/shiftChangeLog', shiftChangeLog);
   fbSaveStaffOverrides(); // 有休残も確定
+  // フレックス時間を確定保存
+  if (Object.keys(pendingFlexData).length > 0) {
+    Object.assign(flexTimes, pendingFlexData);
+    fbSave('/flexTimes', flexTimes);
+  }
 
   const count = Object.keys(pendingShiftData).length;
   pendingShiftData = {};
   pendingShiftOriginal = {};
+  pendingFlexData = {};
+  pendingFlexOriginal = {};
   _pendingFixedOriginal = {}; // 保存確定：🔒追跡データをリセット
   _confirmedUnlocks.clear(); // 確認済みセットもリセット
   updateSaveButton();
@@ -3590,12 +3869,28 @@ function discardShiftChanges() {
       const p = patById(origShiftId);
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
       const disp = patName(origShiftId);
-      cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${disp}">${disp.slice(0,2)}</span>`;
+      // フレックスパターンに戻る場合は保存済み時間を表示
+      let cellLabel, cellTitle;
+      if (p && p.flex) {
+        const ft = flexTimes[key];
+        cellLabel = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        cellTitle = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス';
+      } else {
+        cellLabel = disp.slice(0, 2);
+        cellTitle = disp;
+      }
+      cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${cellTitle}">${cellLabel}</span>`;
       cell.classList.remove('pending-cell');
     }
   });
   pendingShiftData = {};
   pendingShiftOriginal = {};
+  // フレックス時間を元に戻す
+  Object.entries(pendingFlexOriginal).forEach(([key, origFlex]) => {
+    if (origFlex === null) delete flexTimes[key]; else flexTimes[key] = origFlex;
+  });
+  pendingFlexData = {};
+  pendingFlexOriginal = {};
   // ペイント中に解除された🔒を復元
   const fixedRestored = Object.keys(_pendingFixedOriginal).length > 0;
   Object.entries(_pendingFixedOriginal).forEach(([k, fixedEntry]) => {
@@ -3828,12 +4123,21 @@ function renderAllShiftTable() {
       else if (isHalf) { work += 0.5; off += 0.5; }
       else if (isOff)  off += 1;
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
-      const timeStr = p ? (p.allday ? '終日' : p.halfday ? '半日' : `${p.start}〜${p.end}`) : '';
-      const timeAttr = timeStr ? ` title="${sName} ${timeStr}"` : ` title="${sName}"`;
-      const timeClick = timeStr ? ` onclick="showShiftTimePopup(this,'${sName} ${timeStr}')"` : '';
-      const timeHover = timeStr ? ` onmouseenter="showShiftTimeTooltip(this,'${timeStr}')" onmouseleave="hideShiftTimeTooltip()"` : '';
+      const _isFlexCell2 = p ? !!p.flex : false;
+      let _aLabel, _aTimeStr;
+      if (_isFlexCell2) {
+        const ft = flexTimes[`${year}-${month}-${d}-${s.id}`];
+        _aLabel    = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        _aTimeStr  = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス';
+      } else {
+        _aLabel    = sName.slice(0, 2);
+        _aTimeStr  = p ? (p.allday ? '終日' : p.halfday ? '半日' : `${p.start}〜${p.end}`) : '';
+      }
+      const timeAttr  = _aTimeStr ? ` title="${_isFlexCell2 ? _aTimeStr : sName + ' ' + _aTimeStr}"` : ` title="${sName}"`;
+      const timeClick = _aTimeStr && !_isFlexCell2 ? ` onclick="showShiftTimePopup(this,'${sName} ${_aTimeStr}')"` : '';
+      const timeHover = _aTimeStr && !_isFlexCell2 ? ` onmouseenter="showShiftTimeTooltip(this,'${_aTimeStr}')" onmouseleave="hideShiftTimeTooltip()"` : '';
       tbody += `<td class="shift-cell${d===_tD?' today-col':''}" style="cursor:default;">
-        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${sName.slice(0,2)}</span>
+        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${_aLabel}</span>
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -4265,7 +4569,7 @@ function renderPatterns() {
       return `
       <div class="pattern-card" style="border-top-color:${p.bg};">
         <div class="pattern-name"><span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:14px">${p.name}</span>${catBadge}${halfdayBadge}${yukyuBadge}</div>
-        <div class="pattern-time" style="margin-top:8px">${p.allday ? '終日' : p.halfday ? ('半日（0.5日）' + (p.start && p.end ? ' / ' + p.start + '〜' + p.end : '')) : p.start+' 〜 '+p.end}</div>
+        <div class="pattern-time" style="margin-top:8px">${p.flex ? 'フレックス（セル入力時に時間指定）' : p.allday ? '終日' : p.halfday ? ('半日（0.5日）' + (p.start && p.end ? ' / ' + p.start + '〜' + p.end : '')) : p.start+' 〜 '+p.end}</div>
         <div class="pattern-hours">${p.hours > 0 ? p.hours+'h' : '—'}${p.breakMinutes > 0 ? `<span style="font-size:13px;color:var(--text-muted);font-weight:400;margin-left:6px">休憩${p.breakMinutes}分</span>` : ''}</div>
         <div class="pattern-actions">
           <button class="btn btn-outline btn-sm" onclick="openEditPattern(${i})">編集</button>
@@ -5089,16 +5393,22 @@ function handleRequest(idx, status) {
       const key = `${req.year}-${req.month}-${d}-${req.staffId}`;
       if (status === 'approved') {
         // 承認前の値を保存（取消時に復元するため）
-        if (!req._origShifts) req._origShifts = {};
+        if (!req._origShifts)   req._origShifts   = {};
+        if (!req._origFixed)    req._origFixed    = {};
         req._origShifts[d] = shiftData[key] || '';
-        // 承認 → 希望休を書き込む
+        req._origFixed[d]  = shiftFixed[key] ? JSON.parse(JSON.stringify(shiftFixed[key])) : null;
+        // 承認 → 希望休を書き込み、セルを自動ロック
         shiftData[key] = getKibouId();
+        shiftFixed[key] = { locked: true, reason: `休み希望申請承認済み（${req.staffName || req.staffId}）` };
       } else if (status === 'pending' && prevStatus === 'approved') {
-        // 承認取消 → 元のシフトに復元
-        const orig = (req._origShifts && req._origShifts[d]) || '';
+        // 承認取消 → 元のシフトに復元、ロックも復元
+        const orig      = (req._origShifts && req._origShifts[d]) || '';
+        const origFixed = req._origFixed ? req._origFixed[d] : null;
         if (orig) shiftData[key] = orig; else delete shiftData[key];
+        if (origFixed) shiftFixed[key] = origFixed; else delete shiftFixed[key];
       }
     });
+    fbSave('/shiftFixed', shiftFixed);
     // シフト表が表示中なら列フッター・行合計を更新
     if (document.getElementById('main-shift-table')) {
       updateTableTotals();
@@ -5128,6 +5438,7 @@ function handleRequest(idx, status) {
   if (req.staffId && req.year) fbSave('/shiftData', shiftData);
   const msgs = { approved:'申請を承認しました ✅', rejected:'申請を却下しました ❌', pending:'操作を取り消しました' };
   showToast(msgs[status]);
+  _updateAdminRequestBadge();
   renderRequests();
 }
 
@@ -5274,10 +5585,17 @@ function renderMyShift() {
     const dayClass = `my-day ${w===0?'sunday':w===6?'saturday':''} ${isHoliday?'holiday':''} ${isToday?'today':''}`;
     const holInline = holiday ? `<span class="my-day-holiday">${holiday.slice(0,3)}</span>` : '';
     const shukuchoHtml = isShukucho ? `<div class="my-day-shukucho">宿直</div>` : '';
-    const shortShift = shift.length > 2 ? shift.slice(0, 2) : shift;
-    // 時刻（終日・半日系は非表示）
+    // フレックスパターンはセルに時間ラベルを表示
+    const _myFlexKey = `${year}-${month}-${d}-${staffId}`;
+    const _myFlex = (p && p.flex) ? flexTimes[_myFlexKey] : null;
+    const shortShift = (p && p.flex)
+      ? (_myFlex && _myFlex.start && _myFlex.end ? `${_myFlex.start.replace(/^0/,'').replace(':00','')}-${_myFlex.end.replace(/^0/,'').replace(':00','')}` : 'FX')
+      : (shift.length > 2 ? shift.slice(0, 2) : shift);
+    // 時刻（終日・半日系は非表示。フレックスは flexTimes から取得）
     let timeHtml = '';
-    if (p && !p.allday && !p.halfday && p.start && p.end) {
+    if (p && p.flex && _myFlex && _myFlex.start && _myFlex.end) {
+      timeHtml = `<div class="my-day-time">${_myFlex.start}〜</div>`;
+    } else if (p && !p.allday && !p.halfday && p.start && p.end) {
       timeHtml = `<div class="my-day-time">${p.start}〜</div>`;
     }
     cells += `<div class="${dayClass}">
@@ -5632,6 +5950,47 @@ function renderAccountSettings() {
   const inp = document.getElementById('sys-annual-rest');
   if (inp) inp.value = FY_REST_TARGET;
   updateSysPreview();
+  // フレックステンプレート一覧
+  renderFlexTemplates();
+}
+function renderFlexTemplates() {
+  const list = document.getElementById('flex-tpl-list');
+  if (!list) return;
+  if (flexTemplates.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:4px 0;">テンプレートがありません</div>';
+    return;
+  }
+  list.innerHTML = flexTemplates.map((t, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <div style="flex:1;">
+        <span style="font-size:13px;font-weight:600;">${t.name}</span>
+        <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">${t.start}〜${t.end}（休憩${t.breakMinutes ?? 60}分）</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deleteFlexTemplate(${i})">削除</button>
+    </div>
+  `).join('');
+}
+function addFlexTemplate() {
+  const name        = document.getElementById('flex-tpl-name')?.value.trim();
+  const start       = document.getElementById('flex-tpl-start')?.value;
+  const end         = document.getElementById('flex-tpl-end')?.value;
+  const breakMinutes= parseInt(document.getElementById('flex-tpl-break')?.value) || 60;
+  if (!name)  { showToast('テンプレート名を入力してください'); return; }
+  if (!start || !end) { showToast('出勤・退勤時間を入力してください'); return; }
+  flexTemplates.push({ id: 'FT' + Date.now(), name, start, end, breakMinutes });
+  fbSave('/flexTemplates', flexTemplates);
+  document.getElementById('flex-tpl-name').value  = '';
+  document.getElementById('flex-tpl-start').value = '';
+  document.getElementById('flex-tpl-end').value   = '';
+  document.getElementById('flex-tpl-break').value = '';
+  renderFlexTemplates();
+  showToast('テンプレートを追加しました');
+}
+function deleteFlexTemplate(idx) {
+  flexTemplates.splice(idx, 1);
+  fbSave('/flexTemplates', flexTemplates);
+  renderFlexTemplates();
+  showToast('テンプレートを削除しました');
 }
 function updateSysPreview() {
   const inp = document.getElementById('sys-annual-rest');
