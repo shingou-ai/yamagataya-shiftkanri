@@ -1007,9 +1007,31 @@
       <select class="form-input" id="staff-role-input"></select>
     </div>
     <div class="form-group"><label>雇用形態</label>
-      <select class="form-input" id="staff-type-input">
+      <select class="form-input" id="staff-type-input" onchange="toggleWeeklyHoursField()">
         <option>正社員</option><option>パート</option><option>アルバイト</option>
       </select>
+    </div>
+    <div class="form-group" id="staff-weekly-group" style="display:none;">
+      <label>週所定労働日数 / 時間
+        <span style="font-size:11px;color:var(--text-muted);display:block;margin-top:2px;">有休付与区分（比例付与 or 通常）の判定に使用</span>
+      </label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div style="flex:1;">
+          <label style="font-size:11px;color:var(--text-muted);">所定日数/週</label>
+          <select class="form-input" id="staff-weekly-days-input">
+            <option value="1">1日</option><option value="2">2日</option>
+            <option value="3">3日</option><option value="4" selected>4日</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="font-size:11px;color:var(--text-muted);">所定時間/週</label>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <input class="form-input" type="number" id="staff-weekly-hours-input" min="1" max="40" step="0.5" value="20" style="width:80px;">
+            <span style="font-size:13px;">時間</span>
+          </div>
+        </div>
+      </div>
+      <div id="staff-weekly-preview" style="margin-top:6px;font-size:11px;color:var(--text-muted);"></div>
     </div>
     <div class="form-group">
       <label>入社日 <span style="font-size:11px;color:var(--text-muted)">（有休管理に連動）</span></label>
@@ -1365,11 +1387,15 @@ let STAFF = [
   { id:'B00102', name:'鵜川',        dept:'部屋清掃', role:'',        type:'アルバイト',active:true, hireDate:'',           paidLeaveBalance:null },
 ];
 
-// Initialize scheduledWeeklyDays and lastGrantDate
+// Initialize scheduledWeeklyDays, scheduledWeeklyHours, and lastGrantDate
 const _TODAY_INIT = new Date();
 STAFF.forEach(s => {
   if (!s.hasOwnProperty('scheduledWeeklyDays')) {
     s.scheduledWeeklyDays = s.type === '正社員' ? 5 : 4;
+  }
+  if (!s.hasOwnProperty('scheduledWeeklyHours')) {
+    // 正社員は40時間（通常）、パート/アルバイトは20時間をデフォルト
+    s.scheduledWeeklyHours = s.type === '正社員' ? 40 : 20;
   }
   if (!s.hasOwnProperty('lastGrantDate')) {
     s.lastGrantDate = s.hireDate ? getLastPastMilestoneDate(s.hireDate, _TODAY_INIT) : '';
@@ -4249,6 +4275,25 @@ function populateStaffModal(deptVal='', roleVal='') {
   roleSel.innerHTML = `<option value=""${!roleVal?' selected':''}>（役職なし）</option>`
     + ROLES.map(r => `<option${r===roleVal?' selected':''}>${r}</option>`).join('');
 }
+// 雇用形態に応じて週所定日数/時間フィールドを表示切替
+function toggleWeeklyHoursField() {
+  const type = document.getElementById('staff-type-input').value;
+  const grp = document.getElementById('staff-weekly-group');
+  const isPartTime = type === 'パート' || type === 'アルバイト';
+  if (grp) grp.style.display = isPartTime ? '' : 'none';
+  _updateWeeklyPreview();
+}
+function _updateWeeklyPreview() {
+  const pre = document.getElementById('staff-weekly-preview');
+  if (!pre) return;
+  const days  = parseInt(document.getElementById('staff-weekly-days-input')?.value) || 4;
+  const hours = parseFloat(document.getElementById('staff-weekly-hours-input')?.value) || 20;
+  if (days <= 4 && hours < 30) {
+    pre.innerHTML = `<span style="color:var(--info);font-weight:600;">比例付与対象</span>（週${days}日・週${hours}時間 → 労基法第39条 比例付与）`;
+  } else {
+    pre.innerHTML = `<span style="color:var(--success);font-weight:600;">通常付与対象</span>（週所定30時間以上 or 5日以上）`;
+  }
+}
 function openAddStaff() {
   document.getElementById('add-staff-title').textContent = '👤 スタッフ追加';
   document.getElementById('edit-staff-id').value = '';
@@ -4262,14 +4307,17 @@ function openAddStaff() {
   document.getElementById('staff-hire-preview').textContent = '';
   document.getElementById('staff-pw-group').style.display = '';
   document.getElementById('staff-pw-label').textContent = 'パスワード（初期）';
+  if (document.getElementById('staff-weekly-days-input')) document.getElementById('staff-weekly-days-input').value = '4';
+  if (document.getElementById('staff-weekly-hours-input')) document.getElementById('staff-weekly-hours-input').value = '20';
   populateStaffModal();
+  toggleWeeklyHoursField();
   openModal('add-staff-modal');
 }
 function openEditStaff(staffId) {
   const s = STAFF.find(x => x.id === staffId);
   if (!s) return;
   document.getElementById('add-staff-title').textContent = '✏️ スタッフ編集';
-  document.getElementById('edit-staff-id').value = staffId; // IDで管理
+  document.getElementById('edit-staff-id').value = staffId;
   document.getElementById('staff-name-input').value = s.name;
   document.getElementById('staff-id-input').value = s.id;
   document.getElementById('staff-type-input').value = s.type;
@@ -4277,8 +4325,14 @@ function openEditStaff(staffId) {
   document.getElementById('staff-hire-input').value = s.hireDate || '';
   document.getElementById('staff-pw-group').style.display = '';
   document.getElementById('staff-pw-label').textContent = 'パスワード';
+  // 週所定日数・時間を既存値でセット
+  const daysEl  = document.getElementById('staff-weekly-days-input');
+  const hoursEl = document.getElementById('staff-weekly-hours-input');
+  if (daysEl)  daysEl.value  = s.scheduledWeeklyDays  ?? 4;
+  if (hoursEl) hoursEl.value = s.scheduledWeeklyHours ?? 20;
   populateStaffModal(s.dept, s.role||'');
-  previewHireDate(); // 入社日プレビュー更新
+  toggleWeeklyHoursField();
+  previewHireDate();
   openModal('add-staff-modal');
 }
 function saveStaff() {
@@ -4296,7 +4350,8 @@ function saveStaff() {
     active: true,
     password: pwInput,
     hireDate: hireInputVal || '',
-    scheduledWeeklyDays: document.getElementById('staff-type-input').value === '正社員' ? 5 : 4,
+    scheduledWeeklyDays:  data.type === '正社員' ? 5 : (parseInt(document.getElementById('staff-weekly-days-input')?.value) || 4),
+    scheduledWeeklyHours: data.type === '正社員' ? 40 : (parseFloat(document.getElementById('staff-weekly-hours-input')?.value) || 20),
   };
   if (!data.name || !data.id) { showToast('氏名とIDを入力してください'); return; }
   if (editId === '') {
@@ -4312,9 +4367,8 @@ function saveStaff() {
     if (idx < 0) { showToast('スタッフが見つかりません'); return; }
     const prev = STAFF[idx];
     data.active = prev.active;
-    // paidLeaveBalance・scheduledWeeklyDays を引き継ぎ（上書きしない）
+    // paidLeaveBalance を引き継ぎ（上書きしない）。週所定はモーダルの値を使用
     data.paidLeaveBalance = prev.paidLeaveBalance;
-    data.scheduledWeeklyDays = prev.scheduledWeeklyDays || data.scheduledWeeklyDays;
     // 入社日が変わった場合 lastGrantDate を再計算、変わらなければ引き継ぎ
     if (data.hireDate && data.hireDate !== prev.hireDate) {
       data.lastGrantDate = getLastPastMilestoneDate(data.hireDate, today) || '';
@@ -4981,9 +5035,12 @@ function getLastPastMilestoneDate(hireDateStr, today) {
   }
   return lastM !== null ? fmtDate(addMonthsToHireDate(hireDateStr, lastM)) : '';
 }
-// ---- 比例付与判定 ----
+// ---- 比例付与判定（労基法第39条：週所定労働日数4日以下かつ週所定労働時間30時間未満）----
 function isProportionalLeave(staff) {
-  return (staff.type === 'パート' || staff.type === 'アルバイト') && (staff.scheduledWeeklyDays || 4) <= 4;
+  if (staff.type !== 'パート' && staff.type !== 'アルバイト') return false;
+  const weeklyDays  = staff.scheduledWeeklyDays  ?? 4;
+  const weeklyHours = staff.scheduledWeeklyHours ?? 20;
+  return weeklyDays <= 4 && weeklyHours < 30;
 }
 // ---- 過去期間の実勤務日数（shiftDataより）----
 function countActualWorkDays(staffId, fromDate, toDate) {
@@ -5070,6 +5127,15 @@ function updateWeeklyDays(staffId, val) {
   const s = STAFF.find(x=>x.id===staffId);
   if (!s) return;
   s.scheduledWeeklyDays = parseInt(val);
+  fbSaveStaffOverrides();
+  renderPaidLeavePage();
+}
+// ---- 週所定時間変更 ----
+function updateWeeklyHours(staffId, val) {
+  const s = STAFF.find(x=>x.id===staffId);
+  if (!s) return;
+  s.scheduledWeeklyHours = parseFloat(val) || 0;
+  fbSaveStaffOverrides();
   renderPaidLeavePage();
 }
 function autoGrantAll() {
@@ -5201,18 +5267,39 @@ function renderPaidLeavePage() {
     const lastFmt = s.lastGrantDate ? s.lastGrantDate.replace(/-/g,'/') : '—';
     const nextFmt = next ? `${next.date.getFullYear()}/${String(next.date.getMonth()+1).padStart(2,'0')}/${String(next.date.getDate()).padStart(2,'0')}` : '—';
 
-    // 比例付与の場合: 週所定日数セレクタ + 年間実勤務日数
-    let grantTypeCell = '通常付与';
-    if (isProp) {
+    // 比例付与 or 通常付与セルの生成
+    const weeklyHours = s.scheduledWeeklyHours ?? 20;
+    const isPropType  = s.type === 'パート' || s.type === 'アルバイト';
+    let grantTypeCell;
+    if (!isPropType) {
+      grantTypeCell = '通常付与';
+    } else if (isProp) {
+      // 比例付与対象（週4日以下かつ30時間未満）
       const nextMonths = next ? next.months : 6;
       const annualDays = getAnnualWorkDays(s, nextMonths);
       const row = PROPORTIONAL_LEAVE_TABLE.find(r => annualDays >= r.minDays && annualDays <= r.maxDays);
-      const tierLabel = row ? `${row.weeklyDays}日/週相当（年${annualDays}日）` : `年${annualDays}日（対象外）`;
+      const tierLabel = row ? `${row.weeklyDays}日/週相当（年${annualDays}日）` : `年${annualDays}日（付与なし）`;
       const weeklyOpts = [1,2,3,4].map(n => `<option value="${n}" ${s.scheduledWeeklyDays===n?'selected':''}>${n}日</option>`).join('');
-      grantTypeCell = `<span style="font-size:11px;color:var(--info);font-weight:700">比例付与</span><br>
-        <span style="font-size:10px;color:var(--text-muted)">週所定: </span>
-        <select style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 2px" onchange="updateWeeklyDays('${s.id}',this.value)">${weeklyOpts}</select>
-        <br><span style="font-size:10px;color:var(--text-muted)">${tierLabel}</span>`;
+      grantTypeCell = `<span style="font-size:11px;color:var(--info);font-weight:700;">比例付与</span><br>
+        <span style="font-size:10px;color:var(--text-muted);">日数: </span>
+        <select style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 2px;" onchange="updateWeeklyDays('${s.id}',this.value)">${weeklyOpts}</select>
+        <span style="font-size:10px;color:var(--text-muted);margin-left:4px;">時間: </span>
+        <input type="number" min="1" max="40" step="0.5" value="${weeklyHours}"
+          style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 3px;width:44px;"
+          onchange="updateWeeklyHours('${s.id}',this.value)">
+        <br><span style="font-size:10px;color:var(--text-muted);">${tierLabel}</span>`;
+    } else {
+      // パート/アルバイトだが30時間以上 or 5日以上 → 通常付与
+      grantTypeCell = `<span style="font-size:11px;color:var(--success);font-weight:700;">通常付与</span><br>
+        <span style="font-size:10px;color:var(--text-muted);">日数: </span>
+        <select style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 2px;" onchange="updateWeeklyDays('${s.id}',this.value)">
+          ${[1,2,3,4,5].map(n=>`<option value="${n}" ${s.scheduledWeeklyDays===n?'selected':''}>${n}日</option>`).join('')}
+        </select>
+        <span style="font-size:10px;color:var(--text-muted);margin-left:4px;">時間: </span>
+        <input type="number" min="1" max="40" step="0.5" value="${weeklyHours}"
+          style="font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 3px;width:44px;"
+          onchange="updateWeeklyHours('${s.id}',this.value)">
+        <br><span style="font-size:10px;color:var(--text-muted);">(週${s.scheduledWeeklyDays}日・${weeklyHours}h)</span>`;
     }
 
     html += `<tr style="${hasPending?'background:#FFFDE7':''}">
