@@ -3404,9 +3404,13 @@ function renderMainShiftTable() {
     let work=0, off=0;
     for (let d=1; d<=days; d++) {
       const key = `${year}-${month}-${d}-${s.id}`;
-      const shiftId = shiftData[key] || '';
+      const _isPendingCell = pendingShiftData.hasOwnProperty(key);
+      const _isDraftCell   = !_isPendingCell && draftShiftData.hasOwnProperty(key);
+      // 下書きセルは draftShiftData の新しい値を表示（shiftData は旧値に戻してあるため）
+      const shiftId = _isDraftCell ? (draftShiftData[key] || '') : (shiftData[key] || '');
       const p = patById(shiftId);
       const sName = p ? p.name : (shiftId || '未定');
+      // 勤務集計はスタッフが実際に見る shiftData（旧値）ではなく下書き反映後の値で計算
       const isOff  = p ? p.allday  : false;
       const isHalf = p ? !!p.halfday : false;
       if (shiftId && !isOff && !isHalf) work += 1;
@@ -3417,8 +3421,6 @@ function renderMainShiftTable() {
       // ペイントセッションで解除済みのロック(_pendingFixedOriginal)は表示しない
       const fixInfo = (shiftFixed[key] && !_pendingFixedOriginal.hasOwnProperty(key)) ? shiftFixed[key] : null;
       const lockTip = fixInfo ? (fixInfo.reason || '固定済み') : '';
-      const _isPendingCell = pendingShiftData.hasOwnProperty(key);
-      const _isDraftCell   = !_isPendingCell && draftShiftData.hasOwnProperty(key);
       // フレックスパターンはセル内に出退勤時間を表示
       const _isFlexCell = p ? !!p.flex : false;
       let _badgeLabel, _badgeTitle;
@@ -3869,9 +3871,13 @@ function saveShiftTable() {
     Object.entries(pendingShiftData).forEach(([key, newShiftId]) => {
       // draftShiftOriginal は最初の下書き変更時のみ記録（確定後に通知するfromとして使用）
       if (!(key in draftShiftOriginal)) {
-        draftShiftOriginal[key] = pendingShiftOriginal[key] || shiftData[key] || '';
+        draftShiftOriginal[key] = pendingShiftOriginal[key] || '';
       }
       draftShiftData[key] = newShiftId;
+      // メモリ上の shiftData を元の値に戻す（スタッフが旧シフトを参照できるよう）
+      const origId = draftShiftOriginal[key];
+      if (origId === '') delete shiftData[key];
+      else shiftData[key] = origId;
     });
     fbSave('/draftShiftData', draftShiftData);
     fbSave('/draftShiftOriginal', draftShiftOriginal);
