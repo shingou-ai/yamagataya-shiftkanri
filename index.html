@@ -5572,7 +5572,13 @@ function renderDailyMembersHtml(dy, dm, dd) {
     if (!sid) return;
     const p = patById(sid);
     if (!p || p.allday) return; // 全日休みは表示しない
-    members.push({ name: s.name, dept: s.dept || '', pat: p, start: p.start || '' });
+    // フレックスは flexTimes から出勤時間を取得
+    let start = p.start || '';
+    if (p.flex) {
+      const ft = flexTimes[`${dy}-${dm}-${dd}-${s.id}`];
+      start = ft && ft.start ? ft.start : '';
+    }
+    members.push({ name: s.name, dept: s.dept || '', pat: p, start });
   });
   if (members.length === 0) return '';
 
