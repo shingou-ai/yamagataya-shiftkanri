@@ -3486,8 +3486,9 @@ function renderMainShiftTable() {
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}${_isDraftCell?' draft-cell':''}"
         data-key="${key}"
         style="user-select:none;position:relative;"
+        title="${_badgeTitle}"
         oncontextmenu="return openFixedMenu(event,'${key}')">
-        <span class="shift-badge" style="background:${bg};color:${fg}" title="${_badgeTitle}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}${_draftFromHtml}
+        <span class="shift-badge" style="background:${bg};color:${fg}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}${_draftFromHtml}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -3623,7 +3624,8 @@ function _applyFlexPaint(key, flexTime) {
   // セル表示更新
   const cell = document.querySelector(`[data-key="${key}"]`);
   if (cell) {
-    cell.innerHTML = `<span class="shift-badge" style="background:${flexPat.bg};color:${flexPat.fg}" title="フレックス: ${flexTime.start}〜${flexTime.end}">FX</span>`;
+    cell.title = `フレックス: ${flexTime.start}〜${flexTime.end}`;
+    cell.innerHTML = `<span class="shift-badge" style="background:${flexPat.bg};color:${flexPat.fg}">FX</span>`;
     cell.classList.add('pending-cell');
   }
 
@@ -4153,7 +4155,8 @@ function discardShiftChanges() {
         cellLabel = disp.slice(0, 2);
         cellTitle = disp;
       }
-      cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}" title="${cellTitle}">${cellLabel}</span>`;
+      cell.title = cellTitle;
+      cell.innerHTML = `<span class="shift-badge" style="background:${bg};color:${fg}">${cellLabel}</span>`;
       cell.classList.remove('pending-cell');
     }
   });
