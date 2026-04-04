@@ -1445,10 +1445,11 @@ STAFF.forEach(s => {
 });
 
 let PATTERNS = [
-  // ── 全部署共通 ──
-  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  halfday:false, yukyuType:false, dept:'', category:'' },
-  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  halfday:false, yukyuType:true,  dept:'', category:'' },
-  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  halfday:false, yukyuType:false, dept:'', category:'' },
+  // ── 全部署共通：休暇 ──
+  { id:'P001', name:'公休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#F8D7DA', fg:'#842029', allday:true,  halfday:false, yukyuType:false, dept:'', category:'', group:'休暇' },
+  { id:'P002', name:'有休',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#D4EDDA', fg:'#155724', allday:true,  halfday:false, yukyuType:true,  dept:'', category:'', group:'休暇' },
+  { id:'P003', name:'希望休',   start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#FFF0CC', fg:'#92400E', allday:true,  halfday:false, yukyuType:false, dept:'', category:'', group:'休暇' },
+  { id:'P026', name:'欠勤',     start:'',      end:'',      hours:0,  breakMinutes:0,  breaks:[], bg:'#6B7280', fg:'#FFFFFF', allday:true,  halfday:false, yukyuType:false, dept:'', category:'', group:'休暇' },
   // ── フロント ──
   { id:'P004', name:'フ早',     start:'06:30', end:'17:00', hours:9,  breakMinutes:90, breaks:[], bg:'#FFF3CD', fg:'#856404', allday:false, dept:'フロント', category:'早番' },
   { id:'P005', name:'フA',      start:'08:00', end:'18:30', hours:9,  breakMinutes:90, breaks:[], bg:'#FFE5B4', fg:'#7a4a00', allday:false, dept:'フロント', category:'早番' },
@@ -1478,8 +1479,8 @@ let PATTERNS = [
   { id:'P024', name:'共用午後', start:'17:30', end:'22:00', hours:4,  breakMinutes:30, breaks:[], bg:'#94A3B8', fg:'#0f172a', allday:false, dept:'共用', category:'遅番' },
   // ── 夜警 ──
   { id:'P025', name:'夜警',     start:'19:00', end:'翌07:00',hours:11, breakMinutes:60, breaks:[], bg:'#1E293B', fg:'#E2E8F0', allday:false, dept:'夜警', category:'夜勤' },
-  // ── フレックス（テンプレート呼び出し） ──
-  { id:'PFLEX', name:'フレックス', start:'', end:'', hours:0, breakMinutes:60, breaks:[], bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス' },
+  // ── 全部署共通：特殊勤務 ──
+  { id:'PFLEX', name:'フレックス', start:'', end:'', hours:0, breakMinutes:60, breaks:[], bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス', group:'特殊勤務' },
 ];
 
 // ===== パターンID ヘルパー =====
@@ -3292,16 +3293,33 @@ function buildPalette() {
   const container = document.getElementById('palette-btns');
   if (!fixedEl || !tabsEl || !container) return;
 
-  // ── 固定パターン（全部署共通: allday または dept=''）──
+  // ── 固定パターン（全部署共通: dept=''）グループ別に表示 ──
   fixedEl.innerHTML = '';
-  PATTERNS.filter(p => p.dept === '' || !p.dept).forEach(p => {
-    const btn = document.createElement('button');
-    btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
-    btn.style.background = p.bg;
-    btn.style.color = p.fg;
-    btn.textContent = p.name;
-    btn.onclick = () => selectPalette(p.id);
-    fixedEl.appendChild(btn);
+  const commonPats = PATTERNS.filter(p => p.dept === '' || !p.dept);
+  const groups = [...new Set(commonPats.map(p => p.group || ''))];
+  groups.forEach(grp => {
+    // グループラベル
+    if (grp) {
+      const lbl = document.createElement('span');
+      lbl.style.cssText = 'font-size:10px;color:var(--text-muted);font-weight:600;padding:0 4px 0 2px;white-space:nowrap;align-self:center;';
+      lbl.textContent = grp;
+      fixedEl.appendChild(lbl);
+    }
+    commonPats.filter(p => (p.group || '') === grp).forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
+      btn.style.background = p.bg;
+      btn.style.color = p.fg;
+      btn.textContent = p.name;
+      btn.onclick = () => selectPalette(p.id);
+      fixedEl.appendChild(btn);
+    });
+    // グループ間セパレータ
+    if (grp !== groups[groups.length - 1]) {
+      const sep = document.createElement('span');
+      sep.style.cssText = 'width:1px;height:24px;background:var(--border);margin:0 4px;align-self:center;display:inline-block;';
+      fixedEl.appendChild(sep);
+    }
   });
 
   // ── 部署タブ ──
@@ -3773,6 +3791,18 @@ function applyPaint(key) {
   // 有休残をローカルのみ更新（保存時にFirebase反映）
   const parts = key.split('-');
   const s = STAFF.find(x => x.id === parts[3]);
+
+  // ── 有休残日数チェック：残0なら有休塗りをブロック ──
+  if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+    const isCostNew  = _yukyuCost(newShiftId);
+    const wasCostOld = _yukyuCost(currentShiftId);
+    const addingYukyu = isCostNew > wasCostOld; // 有休消費が増える方向への変更
+    if (addingYukyu && (s.paidLeaveBalance || 0) <= 0) {
+      showToast(`⛔ ${s.name}さんの有休残日数が0日です。有休を付与できません。「欠勤」パターンを使用してください。`);
+      return; // ブロック：セルは変更しない
+    }
+  }
+
   if (s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
     const wasCost = _yukyuCost(currentShiftId); // 変更前の有休消費コスト
     const isCost  = _yukyuCost(newShiftId);     // 変更後の有休消費コスト
@@ -5622,56 +5652,87 @@ function exportFreeeCSV() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
 
-  // freeeテンプレート仕様：#で始まる行はコメントとして無視される
-  // → ヘッダ行は#コメント形式で先頭に追加（データとして読み込まれない）
-  const rows = [
-    '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇',
-  ];
-  let dataCount = 0;
+  // ── ① 有休→欠勤変換が必要なスタッフを事前チェック ──
+  const kekkinConversions = []; // { name, days[] } 変換一覧（確認ダイアログ用）
+  const kekkinStaffSet = new Set(); // 残日数0で有休セルがあるスタッフID
 
   getOrderedStaff().forEach(s => {
-    // freeeホワイトリストにないスタッフはスキップ
     if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
-
+    if ((s.paidLeaveBalance || 0) > 0) return; // 残あり → 変換不要
+    const yukyuDays = [];
     for (let d = 1; d <= days; d++) {
       const key = `${year}-${month}-${d}-${s.id}`;
-      const shiftId = shiftData[key] || '';
-      if (!shiftId) continue; // 未入力セルはスキップ
-
-      // 日付を YYYY/MM/DD 形式にゼロ埋め
-      const dateStr = `${year}/${String(month).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
-
-      let patternCode = '';
-      let startTime   = '';
-      let endTime     = '';
-      let breakStart  = '';
-      let breakEnd    = '';
-      let allDayLeave = '';
-
-      if (shiftId === 'P002') {
-        allDayLeave = '有休';
-      } else if (shiftId === 'P001' || shiftId === 'P003') {
-        allDayLeave = '公休';
-      } else if (shiftId === 'PFLEX') {
-        patternCode = '0060';
-        const ft = flexTimes[key];
-        if (ft) { startTime = ft.start || ''; endTime = ft.end || ''; }
-      } else if (FREEE_PATTERN_MAP[shiftId]) {
-        patternCode = FREEE_PATTERN_MAP[shiftId];
-      } else {
-        continue; // 未対応パターンはスキップ
+      if ((shiftData[key] || '') === 'P002') {
+        yukyuDays.push(`${month}/${d}`);
       }
-
-      rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
-      dataCount++;
+    }
+    if (yukyuDays.length > 0) {
+      kekkinStaffSet.add(s.id);
+      kekkinConversions.push({ name: s.name, days: yukyuDays });
     }
   });
 
-  // Shift-JIS（CP932）に変換してダウンロード（freeeはShift-JIS形式を要求）
-  const csvText = rows.join('\r\n') + '\r\n';
-  const filename = `freee_schedule_${year}${String(month).padStart(2,'0')}.csv`;
-  downloadFreeeCSV(csvText, filename);
-  showToast(`📤 freeeインポート用CSV（${dataCount}件）をダウンロードしました`);
+  // ── ② 変換がある場合は確認ダイアログ → OKなら出力 ──
+  const _doExport = () => {
+    const rows = [
+      '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇',
+    ];
+    let dataCount = 0, kekkinCount = 0;
+
+    getOrderedStaff().forEach(s => {
+      if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
+      const forceKekkin = kekkinStaffSet.has(s.id); // 有休→欠勤変換対象
+
+      for (let d = 1; d <= days; d++) {
+        const key = `${year}-${month}-${d}-${s.id}`;
+        const shiftId = shiftData[key] || '';
+        if (!shiftId) continue;
+
+        const dateStr = `${year}/${String(month).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+        let patternCode = '', startTime = '', endTime = '', breakStart = '', breakEnd = '', allDayLeave = '';
+
+        if (shiftId === 'P002') {
+          // 有休：残日数0なら欠勤として出力
+          if (forceKekkin) { allDayLeave = '欠勤'; kekkinCount++; }
+          else              { allDayLeave = '有休'; }
+        } else if (shiftId === 'P026') {
+          allDayLeave = '欠勤';
+        } else if (shiftId === 'P001' || shiftId === 'P003') {
+          allDayLeave = '公休';
+        } else if (shiftId === 'PFLEX') {
+          patternCode = '0060';
+          const ft = flexTimes[key];
+          if (ft) { startTime = ft.start || ''; endTime = ft.end || ''; }
+        } else if (FREEE_PATTERN_MAP[shiftId]) {
+          patternCode = FREEE_PATTERN_MAP[shiftId];
+        } else {
+          continue;
+        }
+
+        rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
+        dataCount++;
+      }
+    });
+
+    const csvText = rows.join('\r\n') + '\r\n';
+    const filename = `freee_schedule_${year}${String(month).padStart(2,'0')}.csv`;
+    downloadFreeeCSV(csvText, filename);
+    showToast(`📤 freeeインポート用CSV（${dataCount}件 / うち欠勤変換${kekkinCount}件）をダウンロードしました`);
+  };
+
+  if (kekkinConversions.length > 0) {
+    // 変換一覧を確認ダイアログで表示
+    const detail = kekkinConversions.map(c =>
+      `・${c.name}（${c.days.join('、')}）`
+    ).join('\n');
+    showConfirm(
+      `⚠️ 有休残日数不足のため欠勤に変換します（${kekkinConversions.length}名）`,
+      `以下のスタッフは有休残日数が0日のため、有休セルを「欠勤」として出力します：\n\n${detail}\n\nこのまま出力しますか？`,
+      _doExport, '出力する', false
+    );
+  } else {
+    _doExport();
+  }
 }
 
 function downloadFreeeCSV(content, filename) {
