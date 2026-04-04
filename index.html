@@ -6132,7 +6132,19 @@ function renderMyShift() {
   // 会議通知バナー
   renderMeetingNotif();
   const grid = document.getElementById('my-calendar-grid');
+  const _monthKey = `${year}-${month}`;
+  const _isPublished = !!publishedMonths[_monthKey];
   let cells = '';
+  // 未公開月はカレンダーをロック表示
+  if (!_isPublished) {
+    cells = `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text-muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">${year}年${month}月のシフトはまだ公開されていません</div>
+      <div style="font-size:12px;">公開されるまでしばらくお待ちください</div>
+    </div>`;
+    if (grid) grid.innerHTML = cells;
+    // 7日分はこの下で別途処理するためここでは return しない
+  } else {
   for (let i=0; i<firstDow; i++) cells += `<div class="my-day other-month"><div class="my-day-num">—</div></div>`;
   const today = new Date();
   for (let d=1; d<=days; d++) {
@@ -6172,15 +6184,18 @@ function renderMyShift() {
     </div>`;
   }
   if (grid) grid.innerHTML = cells;
+  } // end else (_isPublished) for calendar
   const upcoming = document.getElementById('my-upcoming-shifts');
   if (!upcoming) return;
-  // 本日から7日分（月またぎ対応）- 公休含め全シフト表示
+  // 本日から7日分（月またぎ対応）- 公開済み月のみ表示
   let items = '';
   const todayObj = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   for (let i = 0; i < 7; i++) {
     const dt = new Date(todayObj);
     dt.setDate(dt.getDate() + i);
     const dy = dt.getFullYear(), dm = dt.getMonth() + 1, dd = dt.getDate();
+    // 未公開月の日付はスキップ
+    if (!publishedMonths[`${dy}-${dm}`]) continue;
     const _shiftId = shiftData[`${dy}-${dm}-${dd}-${staffId}`];
     if (!_shiftId) continue;
     const shift = patName(_shiftId);
