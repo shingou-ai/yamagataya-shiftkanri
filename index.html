@@ -5665,6 +5665,10 @@ const FREEE_PATTERN_MAP = {
   'P025': '0050', // 夜警
   'PFLEX': '0060', // フレックス
 };
+// パターン名ベースのfreeeコードマップ（IDが動的生成のパターン向けフォールバック）
+const FREEE_PATTERN_NAME_MAP = {
+  '掃除': '0022', // 全部署共通の掃除勤務（freeeコード0022で登録）
+};
 
 // freeeインポート対象外のスタッフID（freeeに未登録のスタッフ）
 const FREEE_EXCLUDE_STAFF = new Set(['B00101', 'B00102', 'B00103']);
@@ -5740,7 +5744,16 @@ function exportFreeeCSV() {
         } else if (FREEE_PATTERN_MAP[shiftId]) {
           patternCode = FREEE_PATTERN_MAP[shiftId];
         } else {
-          continue;
+          // IDベースで見つからない場合はパターン名でフォールバック検索
+          const _pat = patById(shiftId);
+          const _nameCode = _pat ? FREEE_PATTERN_NAME_MAP[_pat.name] : null;
+          if (_nameCode) {
+            patternCode = _nameCode;
+            const _p = _pat;
+            if (_p && !_p.allday) { startTime = _p.start || ''; endTime = _p.end || ''; }
+          } else {
+            continue; // マッピング未定義のパターンはスキップ
+          }
         }
 
         rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
