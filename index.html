@@ -595,12 +595,10 @@
         <div class="palette-bar" id="palette-bar">
           <div class="palette-row1">
             <span class="palette-label">🎨</span>
-            <div id="palette-fixed-btns" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></div>
-            <span class="palette-group-sep"></span>
             <div id="palette-dept-tabs" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
             <span class="palette-group-sep"></span>
             <button class="palette-btn palette-erase" id="palette-erase" onclick="selectPalette(null)">✕ 消去</button>
-            <span class="palette-hint" id="palette-hint">部署を選んでパターンを表示</span>
+            <span class="palette-hint" id="palette-hint">パターンを選択してセルに入力</span>
           </div>
           <div class="palette-row2" id="palette-btns"></div>
         </div>
@@ -1686,7 +1684,7 @@ function getOrderedStaff(includeInactive = false) {
 }
 let currentStaffId = null;  // ログイン中のスタッフID
 let currentStaffName = null;
-let paletteDeptTab = null;  // 選択中の部署タブ
+let paletteDeptTab = '__common__';  // 選択中の部署タブ（'__common__'=全部署共通）
 let shiftChangeLog = [];
 // ===== 勤務希望申請 =====
 const MAX_UNAVAIL_PER_MONTH  = 5;   // 月あたりの申請上限
@@ -3308,54 +3306,62 @@ function selectDeptTab(dept) {
   buildPalette();
 }
 function buildPalette() {
-  const fixedEl  = document.getElementById('palette-fixed-btns');
   const tabsEl   = document.getElementById('palette-dept-tabs');
   const container = document.getElementById('palette-btns');
-  if (!fixedEl || !tabsEl || !container) return;
+  if (!tabsEl || !container) return;
 
-  // ── 固定パターン（全部署共通: dept=''）グループ別に表示 ──
-  fixedEl.innerHTML = '';
-  const commonPats = PATTERNS.filter(p => p.dept === '' || !p.dept);
-  const groups = [...new Set(commonPats.map(p => p.group || ''))];
-  groups.forEach(grp => {
-    // グループラベル
-    if (grp) {
-      const lbl = document.createElement('span');
-      lbl.style.cssText = 'font-size:10px;color:var(--text-muted);font-weight:600;padding:0 4px 0 2px;white-space:nowrap;align-self:center;';
-      lbl.textContent = grp;
-      fixedEl.appendChild(lbl);
-    }
-    commonPats.filter(p => (p.group || '') === grp).forEach(p => {
-      const btn = document.createElement('button');
-      btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
-      btn.style.background = p.bg;
-      btn.style.color = p.fg;
-      btn.textContent = p.name;
-      btn.onclick = () => selectPalette(p.id);
-      fixedEl.appendChild(btn);
-    });
-    // グループ間セパレータ
-    if (grp !== groups[groups.length - 1]) {
-      const sep = document.createElement('span');
-      sep.style.cssText = 'width:1px;height:24px;background:var(--border);margin:0 4px;align-self:center;display:inline-block;';
-      fixedEl.appendChild(sep);
-    }
-  });
-
-  // ── 部署タブ ──
+  // ── タブ行：「全部署共通」＋各部署 ──
   tabsEl.innerHTML = '';
+
+  // 全部署共通タブ
+  const commonTab = document.createElement('button');
+  commonTab.className = 'palette-dept-tab' + (paletteDeptTab === '__common__' ? ' active' : '');
+  commonTab.textContent = '全部署共通';
+  commonTab.onclick = () => selectDeptTab('__common__');
+  tabsEl.appendChild(commonTab);
+
+  // 部署タブ
   const depts = [...new Set(PATTERNS.filter(p=>p.dept).map(p=>p.dept))];
   depts.forEach(dept => {
     const tab = document.createElement('button');
     tab.className = 'palette-dept-tab' + (paletteDeptTab===dept ? ' active' : '');
     tab.textContent = dept;
-    tab.onclick = () => selectDeptTab(paletteDeptTab===dept ? null : dept);
+    tab.onclick = () => selectDeptTab(dept);
     tabsEl.appendChild(tab);
   });
 
-  // ── 選択部署のパターン ──
+  // ── パターン展開エリア（row2） ──
   container.innerHTML = '';
-  if (paletteDeptTab) {
+  if (paletteDeptTab === '__common__') {
+    // 全部署共通パターンをグループ別に表示
+    const commonPats = PATTERNS.filter(p => p.dept === '' || !p.dept);
+    const groups = [...new Set(commonPats.map(p => p.group || ''))];
+    groups.forEach((grp, gi) => {
+      // グループ間セパレータ（2番目以降）
+      if (gi > 0) {
+        const sep = document.createElement('span');
+        sep.style.cssText = 'width:1px;height:24px;background:var(--border);margin:0 6px;align-self:center;display:inline-block;';
+        container.appendChild(sep);
+      }
+      // グループラベル
+      if (grp) {
+        const lbl = document.createElement('span');
+        lbl.style.cssText = 'font-size:10px;color:var(--text-muted);font-weight:600;padding:0 4px 0 2px;white-space:nowrap;align-self:center;';
+        lbl.textContent = grp;
+        container.appendChild(lbl);
+      }
+      commonPats.filter(p => (p.group || '') === grp).forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
+        btn.style.background = p.bg;
+        btn.style.color = p.fg;
+        btn.textContent = p.name;
+        btn.onclick = () => selectPalette(p.id);
+        container.appendChild(btn);
+      });
+    });
+  } else if (paletteDeptTab) {
+    // 部署別パターン
     PATTERNS.filter(p => p.dept === paletteDeptTab).forEach(p => {
       const btn = document.createElement('button');
       btn.className = 'palette-btn' + (selectedPalette===p.id ? ' selected' : '');
@@ -3365,11 +3371,6 @@ function buildPalette() {
       btn.onclick = () => selectPalette(p.id);
       container.appendChild(btn);
     });
-  } else {
-    const msg = document.createElement('span');
-    msg.style.cssText = 'font-size:12px;color:var(--text-muted);font-style:italic;';
-    msg.textContent = '← 部署タブを選択して勤務パターンを表示';
-    container.appendChild(msg);
   }
 
   const eraseBtn = document.getElementById('palette-erase');
@@ -3377,7 +3378,7 @@ function buildPalette() {
 
   const hint = document.getElementById('palette-hint');
   if (hint) {
-    if (!isPainting) hint.textContent = '部署を選んでパターンを表示';
+    if (!isPainting) hint.textContent = 'パターンを選択してセルに入力';
     else if (selectedPalette) hint.textContent = `「${patName(selectedPalette)}」を選択中 — セルをクリック/ドラッグで入力`;
     else hint.textContent = '消去モード — セルをクリック/ドラッグで消去';
   }
