@@ -5933,9 +5933,8 @@ function exportFreeeCSV() {
           patternCode = '0060';
           const ft = flexTimes[key];
           if (ft) { startTime = ft.start || ''; endTime = _toFreeeTime(ft.start, ft.end); }
-          // フレックス＋半休（有休）
+          // フレックス＋半休（有休のみ対応。公休はfreeeが勤務パターンとの併用不可のためスキップ）
           if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
-          else if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
         } else {
           // ① パターンのfreeeCodeフィールドを優先参照
           const _pat = patById(shiftId);
@@ -5948,9 +5947,8 @@ function exportFreeeCSV() {
               startTime = _pat.start || '';
               endTime = _toFreeeTime(_pat.start, _pat.end);
             }
-            // 通常勤務＋半休フラグ
+            // 通常勤務＋半休（有休のみ対応。公休はfreeeが勤務パターンとの併用不可のためスキップ）
             if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
-            else if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
           } else {
             continue; // マッピング未定義のパターンはスキップ
           }
