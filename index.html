@@ -10,6 +10,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<!-- Shift-JIS変換ライブラリ（freee CSVエクスポート用） -->
+<script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2/encoding.min.js"></script>
 <style>
   :root {
     --primary: #5C3D2E; --primary-light: #8B6356; --accent: #D4926A;
@@ -5600,20 +5602,36 @@ const FREEE_PATTERN_MAP = {
   'PFLEX': '0060', // フレックス
 };
 
-// freeeインポート対象外のスタッフID
-const FREEE_EXCLUDE_STAFF = new Set(['B00101', 'B00102']);
+// freeeインポート対象外のスタッフID（freeeに未登録のスタッフ）
+const FREEE_EXCLUDE_STAFF = new Set(['B00101', 'B00102', 'B00103']);
+
+// freeeに登録済みの従業員コード（ホワイトリスト）
+// ※ freee未登録スタッフが動的追加された場合も除外するために使用
+const FREEE_STAFF_WHITELIST = new Set([
+  'A00001','A00002','A00003','A00004','A00005','A00006','A00007','A00008',
+  'A00011','A00012','A00013','A00014','A00015','A00016','A00017',
+  'A00020','A00021','A00023','A00024','A00025',
+  'A00031','A00032','A00033',
+  'B00002','B00003','B00005',
+  'B00010','B00011',
+  'B00021','B00022','B00023','B00024','B00025',
+  'B00031','B00032','B00033','B00034','B00035',
+]);
 
 function exportFreeeCSV() {
   const { year, month } = currentMonth;
   const days = daysInMonth(year, month);
 
-  // ヘッダ（freeeのテンプレートに合わせた列順）
-  const headers = ['勤務日', '従業員コード', 'パターンコード', '出勤予定', '退勤予定', '休憩開始予定', '休憩終了予定', '全日休暇'];
-  const rows = [headers.join(',')];
+  // freeeテンプレート仕様：#で始まる行はコメントとして無視される
+  // → ヘッダ行は#コメント形式で先頭に追加（データとして読み込まれない）
+  const rows = [
+    '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇',
+  ];
+  let dataCount = 0;
 
   getOrderedStaff().forEach(s => {
-    // freee未登録スタッフはスキップ
-    if (FREEE_EXCLUDE_STAFF.has(s.id)) return;
+    // freeeホワイトリストにないスタッフはスキップ
+    if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
 
     for (let d = 1; d <= days; d++) {
       const key = `${year}-${month}-${d}-${s.id}`;
@@ -5631,36 +5649,46 @@ function exportFreeeCSV() {
       let allDayLeave = '';
 
       if (shiftId === 'P002') {
-        // 有休
         allDayLeave = '有休';
       } else if (shiftId === 'P001' || shiftId === 'P003') {
-        // 公休・希望休（公休扱い）
         allDayLeave = '公休';
       } else if (shiftId === 'PFLEX') {
-        // フレックス：flexTimesから時刻取得
         patternCode = '0060';
         const ft = flexTimes[key];
-        if (ft) {
-          startTime = ft.start || '';
-          endTime   = ft.end   || '';
-        }
+        if (ft) { startTime = ft.start || ''; endTime = ft.end || ''; }
       } else if (FREEE_PATTERN_MAP[shiftId]) {
-        // 通常パターン：パターンコードのみ（時刻はfreee側定義を使用）
         patternCode = FREEE_PATTERN_MAP[shiftId];
       } else {
-        // 未対応パターンはスキップ
-        continue;
+        continue; // 未対応パターンはスキップ
       }
 
       rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
+      dataCount++;
     }
   });
 
-  // Shift-JIS変換（freeeはShift-JIS推奨）
-  // ブラウザ環境ではUTF-8 BOM付きで出力し、freee側の対応を確認する
+  // Shift-JIS（CP932）に変換してダウンロード（freeeはShift-JIS形式を要求）
+  const csvText = rows.join('\r\n') + '\r\n';
   const filename = `freee_schedule_${year}${String(month).padStart(2,'0')}.csv`;
-  downloadCSV(rows.join('\n') + '\n', filename);
-  showToast(`📤 freeeインポート用CSV（${rows.length - 1}件）をダウンロードしました`);
+  downloadFreeeCSV(csvText, filename);
+  showToast(`📤 freeeインポート用CSV（${dataCount}件）をダウンロードしました`);
+}
+
+function downloadFreeeCSV(content, filename) {
+  // encoding-japanese ライブラリでUTF-16 → Shift-JIS（CP932）変換
+  if (typeof Encoding !== 'undefined') {
+    const unicodeArray = Encoding.stringToCode(content);
+    const sjisArray    = Encoding.convert(unicodeArray, { to: 'SJIS', from: 'UNICODE' });
+    const blob = new Blob([new Uint8Array(sjisArray)], { type: 'text/csv;charset=shift_jis' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+  } else {
+    // フォールバック：UTF-8 BOM付き（Encodingライブラリ未読み込み時）
+    downloadCSV(content, filename);
+    showToast('⚠️ Shift-JIS変換ライブラリが未読み込みです。UTF-8で出力しました。', 'warn');
+  }
 }
 
 function downloadCSV(content, filename) {
