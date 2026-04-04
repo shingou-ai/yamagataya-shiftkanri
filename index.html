@@ -1536,6 +1536,7 @@ function fmtCount(n) { return n % 1 === 0 ? n : n.toFixed(1); }
 function getYukyuId()  { const p = PATTERNS.find(x => x.name === '有休'); return p ? p.id : null; }
 function getKoukyuId() { const p = PATTERNS.find(x => x.name === '公休'); return p ? p.id : null; }
 function getKibouId()  { const p = PATTERNS.find(x => x.name === '希望休'); return p ? p.id : null; }
+function getKekkinId() { const p = PATTERNS.find(x => x.name === '欠勤'); return p ? p.id : null; }
 // 新規パターンID生成
 function generatePatId() {
   let max = 0;
@@ -3684,7 +3685,8 @@ function countUsedLeave(staffId, fiscalYear) {
 // 年度内の全休日カウント（公休＋有休＋希望休）
 function countRestDays(staffId, fiscalYear) {
   const _kiId = getKibouId(); // 希望休は専用列があるため特別扱い
-  const counts = { '公休': 0, '有休': 0, '希望休': 0, total: 0 };
+  const _kkId = getKekkinId(); // 欠勤は休日目標に含めないため特別扱い
+  const counts = { '公休': 0, '有休': 0, '希望休': 0, '欠勤': 0, total: 0 };
   for (const [key, val] of Object.entries(shiftData)) {
     const parts = key.split('-');
     const y = parseInt(parts[0]), m = parseInt(parts[1]), sid = parts[3];
@@ -3693,13 +3695,18 @@ function countRestDays(staffId, fiscalYear) {
     const pat = patById(val);
     if (!pat || (!pat.allday && !pat.halfday)) continue;
     const cost = pat.halfday ? 0.5 : 1;
-    counts.total += cost;
     if (isYukyuPat(val)) {
       counts['有休'] = (counts['有休'] || 0) + cost;
+      counts.total += cost;
     } else if (val === _kiId) {
       counts['希望休'] = (counts['希望休'] || 0) + cost;
+      counts.total += cost;
+    } else if (val === _kkId) {
+      // 欠勤は休日目標（total）には含めない
+      counts['欠勤'] = (counts['欠勤'] || 0) + cost;
     } else {
       counts['公休'] = (counts['公休'] || 0) + cost;
+      counts.total += cost;
     }
   }
   return counts;
@@ -5082,15 +5089,17 @@ function renderReport() {
     ${catThHtml}
     <th style="text-align:center;color:var(--danger)">公休</th>
     <th style="text-align:center;color:var(--success)">有休</th>
+    <th style="text-align:center;color:#6B7280">欠勤</th>
     <th style="text-align:center;color:#4A235A">🌙宿直</th>
     <th style="text-align:center">出勤計</th>
   </tr></thead><tbody>`;
 
   // ── スタッフ別集計行 ─────────────────────────────────
+  const _kkIdR = getKekkinId();
   getOrderedStaff().forEach(s => {
     const catCounts = {};
     activeCats.forEach(c => catCounts[c] = 0);
-    let kyuCount=0, yukuCount=0, shukuchoCount=0, workCount=0;
+    let kyuCount=0, yukuCount=0, kekkinCount=0, shukuchoCount=0, workCount=0;
 
     for (let d=1; d<=days; d++) {
       const sid = shiftData[`${year}-${month}-${d}-${s.id}`];
@@ -5102,9 +5111,10 @@ function renderReport() {
           if (isYukyuPat(sid)) yukuCount += 0.5;
           else                  kyuCount  += 0.5;
         } else if (pat && pat.allday) {
-          // 全日休みパターン: yukyuTypeフラグで有休/公休振り分け
-          if (isYukyuPat(sid)) yukuCount++;
-          else                  kyuCount++;
+          // 全日パターン: 欠勤 / 有休 / 公休 振り分け
+          if (sid === _kkIdR)      kekkinCount++;
+          else if (isYukyuPat(sid)) yukuCount++;
+          else                      kyuCount++;
         } else if (pat) {
           // 通常勤務パターン
           workCount++;
@@ -5126,6 +5136,7 @@ function renderReport() {
       }).join('')}
       <td style="text-align:center;${kyuCount>0?'color:var(--danger);font-weight:700':'color:var(--text-muted)'}">${fmtCount(kyuCount)||'—'}</td>
       <td style="text-align:center;${yukuCount>0?'color:var(--success);font-weight:700':'color:var(--text-muted)'}">${fmtCount(yukuCount)||'—'}</td>
+      <td style="text-align:center;${kekkinCount>0?'color:#6B7280;font-weight:700':'color:var(--text-muted)'}">${kekkinCount||'—'}</td>
       <td style="text-align:center;${shukuchoCount>0?'font-weight:700;color:#4A235A':'color:var(--text-muted)'}">${shukuchoCount||'—'}</td>
       <td style="text-align:center;font-weight:700">${fmtCount(workCount)}</td>
     </tr>`;
@@ -5174,6 +5185,7 @@ function renderFYReport() {
     <th style="text-align:center">公休</th>
     <th style="text-align:center">有休</th>
     <th style="text-align:center">希望休</th>
+    <th style="text-align:center;color:#6B7280">欠勤</th>
     <th style="text-align:center;background:#FFF3E0;color:#E65100;font-weight:700">合計休日<br><span style="font-size:10px;font-weight:400">目標${FY_REST_TARGET}日</span></th>
     <th style="text-align:center">あと必要</th>
     <th style="text-align:center">有休残<br><span style="font-size:10px;font-weight:400">(マスタ)</span></th>
@@ -5200,12 +5212,14 @@ function renderFYReport() {
     const balanceStr = balance !== null && balance !== undefined ? balance : '—';
     totalRest += r.total; totalYukyu += r['有休']; totalStaff++;
     const deptKey = s.dept.replace(/[（）]/g,'');
+    const kekkinVal = r['欠勤'] || 0;
     html += `<tr>
       <td style="font-weight:600">${s.name}</td>
       <td><span class="dept-badge dept-${deptKey}">${s.dept}</span></td>
       <td style="text-align:center;color:${r['公休']>0?'var(--danger)':'var(--text-muted)'};font-weight:${r['公休']>0?'700':'400'}">${r['公休']||'—'}</td>
       <td style="text-align:center;color:${r['有休']>0?'var(--success)':'var(--text-muted)'};font-weight:${r['有休']>0?'700':'400'}">${r['有休']||'—'}</td>
       <td style="text-align:center;color:${r['希望休']>0?'#92400E':'var(--text-muted)'};font-weight:${r['希望休']>0?'700':'400'}">${r['希望休']||'—'}</td>
+      <td style="text-align:center;color:${kekkinVal>0?'#6B7280':'var(--text-muted)'};font-weight:${kekkinVal>0?'700':'400'}">${kekkinVal||'—'}</td>
       <td style="text-align:center;font-weight:700;background:#FFF3E0;
           color:${overTarget?'var(--success)':r.total>=proRataTarget-5?'var(--text)':'#E53935'}">${r.total}</td>
       <td style="text-align:center;font-weight:${needed>0?'700':'400'};color:${needed>20?'#E53935':needed>0?'#FF8F00':'var(--success)'}">
@@ -5217,7 +5231,7 @@ function renderFYReport() {
   const avgRest = totalStaff > 0 ? (totalRest / totalStaff).toFixed(1) : 0;
   html += `</tbody><tfoot><tr>
     <td colspan="2" style="font-weight:700;text-align:right">合計 / 平均</td>
-    <td colspan="3"></td>
+    <td colspan="4"></td>
     <td style="text-align:center;font-weight:700;color:var(--primary)">平均 ${avgRest}日</td>
     <td colspan="3"></td>
   </tr></tfoot>`;
