@@ -2607,13 +2607,41 @@ function clearShiftFixed(key) {
 function setHalfDay(type) {
   const key = _fixedTargetKey;
   if (!key) return;
+  const prevType = halfDayFlags[key] || null; // 変更前の種別
+
+  // 有休残の調整：半休（有休）の設定/解除に応じて ±0.5 する
+  // 対象は通常勤務パターン（有休系パターン自体は paintShift で残高管理済み）
+  const shiftId = shiftData[key];
+  const isNormalShift = shiftId && !_yukyuCost(shiftId); // 有休コスト0=通常勤務
+  const parts = key.split('-');
+  const s = isNormalShift ? STAFF.find(x => x.id === parts[3]) : null;
+
   if (type === 'kokyu') {
     halfDayFlags[key] = 'kokyu';
+    // 前が yukyu だった場合、有休残を +0.5 戻す
+    if (prevType === 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+      s.paidLeaveBalance = Math.min(s.paidLeaveBalance + 0.5, 40);
+      fbSaveStaffOverrides();
+    }
     showToast('🌗 半休（公休）を設定しました（0.5日カウント）');
   } else if (type === 'yukyu') {
     halfDayFlags[key] = 'yukyu';
+    // 前が yukyu でない場合のみ有休残 -0.5
+    if (prevType !== 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+      if ((s.paidLeaveBalance || 0) <= 0) {
+        showToast(`⛔ ${s.name}さんの有休残日数が0日です。有休を付与できません。`);
+        return;
+      }
+      s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 0.5);
+      fbSaveStaffOverrides();
+    }
     showToast('🌗 半休（有休）を設定しました（有休0.5日消費）');
   } else {
+    // 解除：前が yukyu だったなら有休残 +0.5 戻す
+    if (prevType === 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+      s.paidLeaveBalance = Math.min(s.paidLeaveBalance + 0.5, 40);
+      fbSaveStaffOverrides();
+    }
     delete halfDayFlags[key];
     showToast('🌗 半休を解除しました（1日カウントに戻りました）');
   }
@@ -6224,6 +6252,7 @@ function renderMyShift() {
   const grid = document.getElementById('my-calendar-grid');
   const _monthKey = `${year}-${month}`;
   const _isPublished = !!publishedMonths[_monthKey];
+  const today = new Date();
   let cells = '';
   // 未公開月はカレンダーをロック表示
   if (!_isPublished) {
@@ -6236,7 +6265,6 @@ function renderMyShift() {
     // 7日分はこの下で別途処理するためここでは return しない
   } else {
   for (let i=0; i<firstDow; i++) cells += `<div class="my-day other-month"><div class="my-day-num">—</div></div>`;
-  const today = new Date();
   for (let d=1; d<=days; d++) {
     const w = dow(year,month,d);
     const holiday = getHoliday(year, month, d);
