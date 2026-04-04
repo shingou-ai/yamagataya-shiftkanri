@@ -2001,7 +2001,14 @@ async function fbLoad() {
       // フレックスパターン（PFLEX）が存在しなければ自動追加
       if (!PATTERNS.find(p => p.flex)) {
         PATTERNS.push({ id:'PFLEX', name:'フレックス', start:'', end:'', hours:0, breakMinutes:60, breaks:[],
-          bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス' });
+          bg:'#EDE9FE', fg:'#5B21B6', allday:false, halfday:false, flex:true, yukyuType:false, dept:'', category:'フレックス', group:'特殊勤務' });
+        migrated = true;
+      }
+      // 欠勤パターン（P026）が存在しなければ自動追加
+      if (!PATTERNS.find(p => p.name === '欠勤' && p.allday)) {
+        PATTERNS.push({ id:'P026', name:'欠勤', start:'', end:'', hours:0, breakMinutes:0, breaks:[],
+          bg:'#6B7280', fg:'#FFFFFF', allday:true, halfday:false, yukyuType:false,
+          dept:'', category:'', group:'休暇' });
         migrated = true;
       }
       // 午前有休・午後有休 パターンが存在しなければ自動作成
@@ -2013,7 +2020,19 @@ async function fbLoad() {
         if (!PATTERNS.find(p => p.name === def.name)) {
           PATTERNS.push({ id: generatePatId(), name: def.name, start:'', end:'', hours:0,
             breakMinutes:0, breaks:[], bg:def.bg, fg:def.fg,
-            allday:false, halfday:true, yukyuType:true, dept:'', category:'' });
+            allday:false, halfday:true, yukyuType:true, dept:'', category:'', group:'休暇' });
+          migrated = true;
+        }
+      });
+      // groupフィールド未設定の全部署共通パターンに自動付与（マイグレーション）
+      const _autoGroupMap = {
+        '公休':'休暇', '有休':'休暇', '希望休':'休暇', '欠勤':'休暇',
+        '午前有休':'休暇', '午後有休':'休暇', '午前休':'休暇', '午後休':'休暇',
+        'フレックス':'特殊勤務',
+      };
+      PATTERNS.forEach(p => {
+        if ((!p.group) && _autoGroupMap[p.name]) {
+          p.group = _autoGroupMap[p.name];
           migrated = true;
         }
       });
