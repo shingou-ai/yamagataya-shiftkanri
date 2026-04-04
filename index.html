@@ -5808,23 +5808,21 @@ function exportShiftCSV() {
   downloadCSV(csv, `シフト表_${year}年${month}月.csv`);
 }
 // ===== freee勤怠管理 インポートCSV出力 =====
-// 時刻文字列をfreeeのCSV形式に変換（翌日またぎは+24h表記）
-// 例: "翌07:00" → "31:00"、start>endのとき end="00:00" → "24:00"
+// 時刻文字列をfreeeのCSV形式に変換（翌日またぎは「翌日HH:mm」表記）
+// freee形式: 当日=HH:mm (0:00〜23:59)、翌日=翌日HH:mm
+// 例: "翌07:00" → "翌日07:00"、start>endのとき end="00:00" → "翌日00:00"
 function _toFreeeTime(startStr, endStr) {
-  // 翌プレフィックスがある場合は +24h
+  // 翌プレフィックスがある場合は「翌日HH:MM」形式へ
   if (endStr && endStr.startsWith('翌')) {
-    const base = endStr.replace('翌', '');
-    const [h, m] = base.split(':').map(Number);
-    return `${h + 24}:${String(m).padStart(2,'0')}`;
+    return '翌日' + endStr.replace('翌', '');
   }
-  // 翌なし・00:00 かつ start が 00:00 より後 → 翌日の 24:00 扱い
+  // 翌なし・00:00 かつ start が 00:00 より後 → 翌日の 00:00 扱い
   if (endStr === '00:00' && startStr && startStr > '00:00') {
-    return '24:00';
+    return '翌日00:00';
   }
-  // start > end（例: start=22:00, end=06:00）→ end を +24h
+  // start > end（例: start=22:00, end=06:00）→ 翌日扱い
   if (startStr && endStr && endStr < startStr && !endStr.startsWith('翌')) {
-    const [h, m] = endStr.split(':').map(Number);
-    return `${h + 24}:${String(m).padStart(2,'0')}`;
+    return '翌日' + endStr;
   }
   return endStr || '';
 }
