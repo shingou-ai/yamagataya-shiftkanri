@@ -3468,7 +3468,7 @@ function renderMainShiftTable() {
       let _badgeLabel, _badgeTitle;
       if (_isFlexCell) {
         const ft = pendingFlexData[key] || flexTimes[key];
-        _badgeLabel = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        _badgeLabel = 'FX'; // 管理者画面は幅統一のためFXのみ表示
         _badgeTitle = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス（時間未設定）';
       } else {
         _badgeLabel = sName.slice(0, 2);
@@ -3623,10 +3623,7 @@ function _applyFlexPaint(key, flexTime) {
   // セル表示更新
   const cell = document.querySelector(`[data-key="${key}"]`);
   if (cell) {
-    const s = flexTime.start.replace(/^0/, '').replace(':00', '');
-    const e = flexTime.end.replace(/^0/, '').replace(':00', '');
-    const label = `${s}-${e}`;
-    cell.innerHTML = `<span class="shift-badge" style="background:${flexPat.bg};color:${flexPat.fg}" title="フレックス: ${flexTime.start}〜${flexTime.end}">${label}</span>`;
+    cell.innerHTML = `<span class="shift-badge" style="background:${flexPat.bg};color:${flexPat.fg}" title="フレックス: ${flexTime.start}〜${flexTime.end}">FX</span>`;
     cell.classList.add('pending-cell');
   }
 
@@ -4150,7 +4147,7 @@ function discardShiftChanges() {
       let cellLabel, cellTitle;
       if (p && p.flex) {
         const ft = flexTimes[key];
-        cellLabel = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        cellLabel = 'FX'; // 管理者画面は幅統一のためFXのみ
         cellTitle = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス';
       } else {
         cellLabel = disp.slice(0, 2);
@@ -4404,7 +4401,7 @@ function renderAllShiftTable() {
       let _aLabel, _aTimeStr;
       if (_isFlexCell2) {
         const ft = flexTimes[`${year}-${month}-${d}-${s.id}`];
-        _aLabel    = ft && ft.start && ft.end ? `${ft.start.replace(/^0/,'').replace(':00','')}-${ft.end.replace(/^0/,'').replace(':00','')}` : 'FX';
+        _aLabel    = 'FX'; // 管理者画面は幅統一のためFXのみ
         _aTimeStr  = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス';
       } else {
         _aLabel    = sName.slice(0, 2);
@@ -6140,15 +6137,23 @@ function renderMyShift() {
     const holiday = getHoliday(dy, dm, dd);
     const isShukuchoDay = shukuchoData[`${dy}-${dm}-${dd}`] === staffId;
     const isRestDay = p ? (p.allday || !!p.halfday) : false;
-    // 時間情報（終日・半日系は表示しない）
-    const hasTime = !isRestDay && p && !p.allday && !p.halfday && p.start && p.end;
-    const timeRange = hasTime ? `${p.start} 〜 ${p.end}` : '';
-    const hoursText = hasTime ? `${p.hours}h` : '';
-    const breakText = hasTime && p.breaks && p.breaks.length
+    const _isFlex7 = p ? !!p.flex : false;
+    const _flex7Key = `${dy}-${dm}-${dd}-${staffId}`;
+    const _flex7ft  = _isFlex7 ? flexTimes[_flex7Key] : null;
+    // 時間情報（終日・半日系は表示しない。フレックスはflexTimesから取得）
+    const hasTime = !isRestDay && (
+      (_isFlex7 && _flex7ft && _flex7ft.start && _flex7ft.end) ||
+      (!_isFlex7 && p && !p.allday && !p.halfday && p.start && p.end)
+    );
+    const timeRange = _isFlex7
+      ? (_flex7ft && _flex7ft.start && _flex7ft.end ? `${_flex7ft.start} 〜 ${_flex7ft.end}` : '')
+      : (hasTime ? `${p.start} 〜 ${p.end}` : '');
+    const hoursText = hasTime && !_isFlex7 ? `${p.hours}h` : '';
+    const breakText = hasTime && !_isFlex7 && p.breaks && p.breaks.length
       ? p.breaks.map(b=>`${b.from}〜${b.to}`).join(' / ')
       : '';
     const breakMinText = hasTime && p && p.breakMinutes > 0 ? `休憩 ${p.breakMinutes}分` : '';
-    const timeBarHtml = (isRestDay || !hasTime) ? '' : buildTimeBarHtml(p);
+    const timeBarHtml = (isRestDay || !hasTime || _isFlex7) ? '' : buildTimeBarHtml(p);
     const monthLabel = dm !== (today.getMonth()+1) ? `<span style="font-size:9px;color:var(--text-muted);">${dm}月</span>` : '';
     const membersHtml = renderDailyMembersHtml(dy, dm, dd);
     items += `<div class="my-shift-item">
