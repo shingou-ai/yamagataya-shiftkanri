@@ -1337,8 +1337,17 @@
       <button class="modal-close" onclick="closeFlexModal()">×</button>
     </div>
     <div class="modal-body">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">テンプレートから選ぶか、直接時間を入力してください。</div>
-      <div id="flex-template-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;min-height:32px;"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">テンプレートから選ぶか、直接時間を入力してください。</div>
+      <!-- 最近の履歴（自動保存） -->
+      <div id="flex-history-section" style="margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">🕐 最近使った時間</div>
+        <div id="flex-history-btns" style="display:flex;flex-wrap:wrap;gap:6px;min-height:28px;"></div>
+      </div>
+      <!-- 手動テンプレート -->
+      <div id="flex-template-section" style="margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">📌 テンプレート</div>
+        <div id="flex-template-btns" style="display:flex;flex-wrap:wrap;gap:8px;min-height:28px;"></div>
+      </div>
       <div style="display:flex;gap:12px;">
         <div class="form-group" style="flex:1;margin-bottom:10px;">
           <label>出勤時間</label>
@@ -1700,6 +1709,7 @@ const UNAVAIL_REASONS = [
 let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
 let flexTimes          = {};  // key(YYYY-M-D-staffId) → { start:'09:00', end:'18:00', breakMinutes:60 }
 let flexTemplates      = [];  // [{ id, name, start, end, breakMinutes }]
+let flexHistory        = [];  // [{ start, end, breakMinutes }] 最近使った時間（最大5件・自動保存）
 let pendingFlexData    = {};  // 未保存フレックス時間: key → { start, end, breakMinutes }
 let pendingFlexOriginal= {};  // 各キーの変更前のフレックス時間（discard用）
 let meetingTypes       = {};  // typeId → { id, name, attendeeIds:[] }
@@ -2256,6 +2266,11 @@ function fbStartListeners() {
     const d = snap.val();
     if (d && Array.isArray(d)) flexTemplates = d;
     if (document.querySelector('.page.active')?.id === 'page-account-settings') renderFlexTemplates();
+  });
+  // フレックス履歴のリアルタイム同期
+  _db.ref('/flexHistory').on('value', snap => {
+    const d = snap.val();
+    flexHistory = (d && Array.isArray(d)) ? d : [];
   });
   // staffOverrides（有休残など）のリアルタイム同期
   _db.ref('/staffOverrides').on('value', snap => {
@@ -3536,6 +3551,20 @@ let _flexModalKey = null;
 
 function openFlexModal(key) {
   _flexModalKey = key;
+  // 最近の履歴ボタンを描画
+  const histBtns = document.getElementById('flex-history-btns');
+  const histSection = document.getElementById('flex-history-section');
+  if (histBtns) {
+    if (flexHistory.length === 0) {
+      histBtns.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">履歴なし（確定すると自動で登録されます）</span>';
+    } else {
+      histBtns.innerHTML = flexHistory.map((h, i) =>
+        `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:3px 10px;" onclick="applyFlexHistory(${i})">
+          ${h.start}〜${h.end}<span style="font-size:9px;color:var(--text-muted);margin-left:4px;">休${h.breakMinutes}分</span>
+        </button>`
+      ).join('');
+    }
+  }
   // テンプレートボタンを描画
   const btns = document.getElementById('flex-template-btns');
   if (btns) {
@@ -3572,6 +3601,25 @@ function applyFlexTemplate(tplId) {
   updateFlexHoursPreview();
 }
 
+function applyFlexHistory(idx) {
+  const h = flexHistory[idx];
+  if (!h) return;
+  document.getElementById('flex-start-input').value = h.start;
+  document.getElementById('flex-end-input').value   = h.end;
+  document.getElementById('flex-break-input').value = h.breakMinutes ?? 60;
+  updateFlexHoursPreview();
+}
+
+function saveFlexHistory(start, end, breakMinutes) {
+  // 同じ組み合わせが既にあれば削除（先頭に移動するため）
+  flexHistory = flexHistory.filter(h => !(h.start === start && h.end === end && h.breakMinutes === breakMinutes));
+  // 先頭に追加
+  flexHistory.unshift({ start, end, breakMinutes });
+  // 最新5件のみ保持
+  flexHistory = flexHistory.slice(0, 5);
+  fbSave('/flexHistory', flexHistory);
+}
+
 function updateFlexHoursPreview() {
   const s = document.getElementById('flex-start-input')?.value;
   const e = document.getElementById('flex-end-input')?.value;
@@ -3594,6 +3642,8 @@ function confirmFlexTime() {
   if (!start || !end) { showToast('出勤・退勤時間を入力してください'); return; }
   const key = _flexModalKey;
   closeFlexModal();
+  // 確定した時間を履歴に自動保存（最新5件）
+  saveFlexHistory(start, end, breakMinutes);
   _applyFlexPaint(key, { start, end, breakMinutes });
 }
 
