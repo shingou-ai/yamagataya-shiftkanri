@@ -120,6 +120,7 @@
   .shift-cell.draft-cell { outline:2px solid #7C3AED !important; outline-offset:-2px; background:#F5F3FF !important; }
   .shift-cell.draft-cell .shift-badge::after { content:'📝'; font-size:7px; vertical-align:super; margin-left:1px; }
   .draft-from-badge { display:block; font-size:9px; color:#7C3AED; line-height:1.1; margin-top:1px; text-decoration:line-through; opacity:.75; }
+  .halfday-badge { display:inline-block; font-size:8px; background:#7C3AED; color:#fff; border-radius:3px; padding:0 3px; margin-left:2px; vertical-align:middle; line-height:1.4; }
   /* 保存バー（画面下部固定） */
   #save-bar { display:none; align-items:center; gap:10px; background:#FFF8E1; border-top:2px solid var(--warning); padding:10px 20px; flex-wrap:wrap; position:fixed; bottom:0; left:0; right:0; z-index:9999; box-shadow:0 -2px 10px rgba(0,0,0,.15); }
   #save-bar.has-pending { display:flex; }
@@ -1191,6 +1192,9 @@
 
 <!-- コンテキストメニュー: シフト固定 -->
 <div id="fixed-context-menu" style="display:none;">
+  <div id="fcm-halfday-set"   class="fcm-item" onclick="setHalfDay(true)"  style="color:#7C3AED;">🌗 半休にする</div>
+  <div id="fcm-halfday-unset" class="fcm-item" onclick="setHalfDay(false)" style="color:#7C3AED;">🌗 半休を解除する</div>
+  <div class="fcm-divider" style="height:1px;background:var(--border);margin:2px 0;"></div>
   <div id="fcm-lock"   class="fcm-item" onclick="openFixedModal()">🔒 このシフトを固定する</div>
   <div id="fcm-unlock" class="fcm-item" style="color:var(--danger);" onclick="clearShiftFixed()">🔓 固定を解除する</div>
 </div>
@@ -1725,6 +1729,7 @@ const UNAVAIL_REASONS = [
   '📋 その他',  // 「その他」選択時はテキスト入力を表示
 ];
 let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
+let halfDayFlags       = {};  // key(YYYY-M-D-staffId) → true（通常勤務に半休フラグ）
 let flexTimes          = {};  // key(YYYY-M-D-staffId) → { start:'09:00', end:'18:00', breakMinutes:60 }
 let flexTemplates      = [];  // [{ id, name, start, end, breakMinutes }]
 let flexHistory        = [];  // [{ start, end, breakMinutes }] 最近使った時間（最大5件・自動保存）
@@ -1935,6 +1940,7 @@ async function fbLoad() {
     if (d.shiftChangeLog) shiftChangeLog = Array.isArray(d.shiftChangeLog) ? d.shiftChangeLog : Object.values(d.shiftChangeLog);
     if (d.reqNotifLog)    reqNotifLog    = Array.isArray(d.reqNotifLog)    ? d.reqNotifLog    : Object.values(d.reqNotifLog);
     if (d.shiftFixed)       shiftFixed       = d.shiftFixed;
+    if (d.halfDayFlags)     halfDayFlags     = d.halfDayFlags;
     if (d.draftShiftData)   { draftShiftData = d.draftShiftData; if (d.draftShiftOriginal) draftShiftOriginal = d.draftShiftOriginal; }
     if (d.flexTimes)        flexTimes        = d.flexTimes;
     if (d.flexTemplates && Array.isArray(d.flexTemplates) && d.flexTemplates.length > 0) flexTemplates = d.flexTemplates;
@@ -2228,6 +2234,13 @@ function fbStartListeners() {
     }
   });
   // シフト固定フラグのリアルタイム同期
+  _db.ref('/halfDayFlags').on('value', snap => {
+    halfDayFlags = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-shift-table') renderMainShiftTable();
+    if (pid === 'page-all-shift')   renderAllShiftTable();
+    if (pid === 'page-my-shift')    renderMyShift();
+  });
   _db.ref('/shiftFixed').on('value', snap => {
     shiftFixed = snap.val() || {};
     const pid = document.querySelector('.page.active')?.id;
@@ -2529,6 +2542,13 @@ function openFixedMenu(event, key) {
   const isFixed = !!shiftFixed[key];
   document.getElementById('fcm-lock').style.display   = isFixed ? 'none' : 'flex';
   document.getElementById('fcm-unlock').style.display = isFixed ? 'flex' : 'none';
+  // 半休メニューの表示切替（休日系パターン・未設定セルは半休不可）
+  const sid = shiftData[key] || '';
+  const pat = patById(sid);
+  const canHalfDay = sid && pat && !pat.allday; // 終日パターン以外に半休可
+  const isHalfDay  = !!halfDayFlags[key];
+  document.getElementById('fcm-halfday-set').style.display   = (canHalfDay && !isHalfDay) ? 'flex' : 'none';
+  document.getElementById('fcm-halfday-unset').style.display = (canHalfDay &&  isHalfDay) ? 'flex' : 'none';
   // ページ端を超えないよう位置調整
   const x = Math.min(event.clientX, window.innerWidth  - 180);
   const y = Math.min(event.clientY, window.innerHeight - 100);
@@ -2580,6 +2600,20 @@ function clearShiftFixed(key) {
   fbSave('/shiftFixed', shiftFixed);
   renderMainShiftTable();
   showToast('🔓 固定を解除しました');
+}
+
+function setHalfDay(enable) {
+  const key = _fixedTargetKey;
+  if (!key) return;
+  if (enable) {
+    halfDayFlags[key] = true;
+    showToast('🌗 半休を設定しました（0.5日カウント）');
+  } else {
+    delete halfDayFlags[key];
+    showToast('🌗 半休を解除しました（1日カウントに戻りました）');
+  }
+  fbSave('/halfDayFlags', halfDayFlags);
+  renderMainShiftTable();
 }
 
 // タブ切替（申請管理ページ内）
@@ -3497,11 +3531,13 @@ function renderMainShiftTable() {
       const p = patById(shiftId);
       const sName = p ? p.name : (shiftId || '未定');
       // 勤務集計はスタッフが実際に見る shiftData（旧値）ではなく下書き反映後の値で計算
-      const isOff  = p ? p.allday  : false;
-      const isHalf = p ? !!p.halfday : false;
-      if (shiftId && !isOff && !isHalf) work += 1;
-      else if (isHalf) { work += 0.5; off += 0.5; }
-      else if (isOff)  off += 1;
+      const isOff     = p ? p.allday  : false;
+      const isHalf    = p ? !!p.halfday : false;
+      const _isHalfDay = !!halfDayFlags[key]; // 右クリックで設定した半休フラグ
+      if (shiftId && !isOff && !isHalf && !_isHalfDay) work += 1;
+      else if (isHalf)     { work += 0.5; off += 0.5; }
+      else if (_isHalfDay) { work += 0.5; off += 0.5; } // 半休フラグ付き通常勤務
+      else if (isOff)      off += 1;
       const bg = p ? p.bg : '#E9ECEF';
       const fg = p ? p.fg : '#6c757d';
       // ペイントセッションで解除済みのロック(_pendingFixedOriginal)は表示しない
@@ -3527,12 +3563,14 @@ function renderMainShiftTable() {
         _draftFromHtml  = `<span class="draft-from-badge" title="変更前: ${_fromName}">${_fromName.slice(0,2)}</span>`;
         _badgeTitle     = `下書き変更: ${_fromName} → ${sName}（未通知）`;
       }
+      if (_isHalfDay) _badgeTitle += '（半休）';
+      const _halfdayBadgeHtml = _isHalfDay ? `<span class="halfday-badge">半</span>` : '';
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}${_isDraftCell?' draft-cell':''}"
         data-key="${key}"
         style="user-select:none;position:relative;"
         title="${_badgeTitle}"
         oncontextmenu="return openFixedMenu(event,'${key}')">
-        <span class="shift-badge" style="background:${bg};color:${fg}">${_badgeLabel}</span>${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}${_draftFromHtml}
+        <span class="shift-badge" style="background:${bg};color:${fg}">${_badgeLabel}</span>${_halfdayBadgeHtml}${fixInfo ? `<span class="lock-badge" title="🔒 ${lockTip}">🔒</span>` : ''}${_draftFromHtml}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -5217,10 +5255,11 @@ function renderReport() {
           else if (isYukyuPat(sid)) yukuCount++;
           else                      kyuCount++;
         } else if (pat) {
-          // 通常勤務パターン
-          workCount++;
+          // 通常勤務パターン（半休フラグを考慮）
+          const _hdf = !!halfDayFlags[`${year}-${month}-${d}-${s.id}`];
+          workCount += _hdf ? 0.5 : 1;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) {
-            catCounts[pat.category]++;
+            catCounts[pat.category] += _hdf ? 0.5 : 1;
           }
         }
       }
@@ -6203,13 +6242,15 @@ function renderMyShift() {
     } else if (p && !p.allday && !p.halfday && p.start && p.end) {
       timeHtml = `<div class="my-day-time">${p.start}〜</div>`;
     }
+    const _myHalfDay = !!halfDayFlags[`${year}-${month}-${d}-${staffId}`];
+    const _myHalfBadge = _myHalfDay ? `<span style="font-size:9px;background:#7C3AED;color:#fff;border-radius:3px;padding:0 3px;margin-left:2px;vertical-align:middle;">半</span>` : '';
     cells += `<div class="${dayClass}">
       <div class="my-day-header">
         <div class="my-day-num">${d}</div>
         ${holInline}
       </div>
       ${shukuchoHtml}
-      <span class="my-day-shift" style="background:${bg};color:${fg}">${shortShift}</span>
+      <span class="my-day-shift" style="background:${bg};color:${fg}">${shortShift}</span>${_myHalfBadge}
       ${timeHtml}
     </div>`;
   }
@@ -6253,6 +6294,7 @@ function renderMyShift() {
     const breakMinText = hasTime && p && p.breakMinutes > 0 ? `休憩 ${p.breakMinutes}分` : '';
     const timeBarHtml = (isRestDay || !hasTime || _isFlex7) ? '' : buildTimeBarHtml(p);
     const monthLabel = dm !== (today.getMonth()+1) ? `<span style="font-size:9px;color:var(--text-muted);">${dm}月</span>` : '';
+    const _upcoming7HalfDay = !!halfDayFlags[`${dy}-${dm}-${dd}-${staffId}`];
     const membersHtml = renderDailyMembersHtml(dy, dm, dd);
     items += `<div class="my-shift-item">
       <div class="my-shift-item-top">
@@ -6265,6 +6307,7 @@ function renderMyShift() {
         <div class="my-shift-info">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shift}</span>
+            ${_upcoming7HalfDay ? `<span style="background:#7C3AED;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休</span>` : ''}
             ${isShukuchoDay ? `<span style="background:#EDE7F6;color:#4A235A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">宿直</span>` : ''}
             ${hoursText ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">${hoursText}</span>` : ''}
           </div>
