@@ -5900,7 +5900,7 @@ function exportFreeeCSV() {
   // ── ② 変換がある場合は確認ダイアログ → OKなら出力 ──
   const _doExport = () => {
     const rows = [
-      '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇',
+      '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇,半休種別名称',
     ];
     let dataCount = 0, kekkinCount = 0;
 
@@ -5914,20 +5914,28 @@ function exportFreeeCSV() {
         if (!shiftId) continue;
 
         const dateStr = `${year}/${String(month).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
-        let patternCode = '', startTime = '', endTime = '', breakStart = '', breakEnd = '', allDayLeave = '';
+        let patternCode = '', startTime = '', endTime = '', breakStart = '', breakEnd = '', allDayLeave = '', halfLeaveType = '';
+
+        // 半休フラグを取得
+        const _halfType = halfDayFlags[key] || null; // 'yukyu' / 'kokyu' / null
 
         if (shiftId === 'P002') {
           // 有休：残日数0なら欠勤として出力
           if (forceKekkin) { allDayLeave = '欠勤'; kekkinCount++; }
-          else              { allDayLeave = '有休'; }
+          else if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
+          else { allDayLeave = '有休'; }
         } else if (shiftId === 'P026') {
           allDayLeave = '欠勤';
         } else if (shiftId === 'P001' || shiftId === 'P003') {
-          allDayLeave = '公休';
+          if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
+          else { allDayLeave = '公休'; }
         } else if (shiftId === 'PFLEX') {
           patternCode = '0060';
           const ft = flexTimes[key];
           if (ft) { startTime = ft.start || ''; endTime = _toFreeeTime(ft.start, ft.end); }
+          // フレックス＋半休（有休）
+          if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
+          else if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
         } else {
           // ① パターンのfreeeCodeフィールドを優先参照
           const _pat = patById(shiftId);
@@ -5940,12 +5948,15 @@ function exportFreeeCSV() {
               startTime = _pat.start || '';
               endTime = _toFreeeTime(_pat.start, _pat.end);
             }
+            // 通常勤務＋半休フラグ
+            if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
+            else if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
           } else {
             continue; // マッピング未定義のパターンはスキップ
           }
         }
 
-        rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
+        rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave, halfLeaveType].join(','));
         dataCount++;
       }
     });
