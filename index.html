@@ -865,6 +865,17 @@
               <button class="btn btn-primary" onclick="addSubAdmin()">追加</button>
             </div>
           </div>
+          <div class="card" style="flex:2;min-width:320px;">
+            <div class="card-title">🔗 freee連携設定</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+              各勤務パターンに対応するfreeeのコード番号を設定します。未設定のパターンはfreeeエクスポートの対象外になります。
+              <span style="color:#059669;font-weight:600;">⚠️ 未設定</span>のパターンをfreeeにエクスポートしたい場合は、先にfreeeで勤務パターンを登録してコードを確認してください。
+            </div>
+            <div id="freee-mapping-list"></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+              <button class="btn btn-primary" onclick="saveFreeeMapping()">💾 一括保存</button>
+            </div>
+          </div>
           <div class="card" style="flex:1;min-width:280px;max-width:480px;">
             <div class="card-title">⏰ フレックステンプレート</div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">シフト入力時にワンタップで選べる時間テンプレートを登録します。</div>
@@ -1144,6 +1155,13 @@
     <div class="modal-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="form-group"><label>背景色</label><input class="form-input" type="color" id="pattern-color-input" value="#FFF3CD" style="height:44px;padding:4px;cursor:pointer;"></div>
       <div class="form-group"><label>文字色</label><input class="form-input" type="color" id="pattern-text-color-input" value="#856404" style="height:44px;padding:4px;cursor:pointer;"></div>
+    </div>
+    <div class="form-group" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:var(--radius-sm);padding:10px 12px;margin-top:4px;">
+      <label style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:14px;">🔗</span> freeeコード
+        <span style="font-size:11px;color:var(--text-muted);font-weight:400;">（freeeの勤務パターン設定画面のコード番号）</span>
+      </label>
+      <input class="form-input" type="text" id="pattern-freee-code-input" placeholder="例: 0001（未設定の場合はfreeeにエクスポートされません）" style="margin-top:6px;font-family:monospace;">
     </div>
     <div class="form-group">
       <label>休日区分（公休・有休等）</label>
@@ -2041,6 +2059,17 @@ async function fbLoad() {
       PATTERNS.forEach(p => {
         if ((!p.group) && _autoGroupMap[p.name]) {
           p.group = _autoGroupMap[p.name];
+          migrated = true;
+        }
+      });
+      // freeeCodeフィールドが未設定のパターンに FREEE_PATTERN_MAP からマイグレーション
+      PATTERNS.forEach(p => {
+        if (!p.freeeCode && FREEE_PATTERN_MAP[p.id]) {
+          p.freeeCode = FREEE_PATTERN_MAP[p.id];
+          migrated = true;
+        }
+        if (!p.freeeCode && FREEE_PATTERN_NAME_MAP[p.name]) {
+          p.freeeCode = FREEE_PATTERN_NAME_MAP[p.name];
           migrated = true;
         }
       });
@@ -5011,6 +5040,7 @@ function openEditPattern(idx) {
   document.getElementById('pattern-yukyu-yukyu').checked = isYukyu;
   document.getElementById('pattern-yukyu-kokyu').checked = !isYukyu;
   document.getElementById('pattern-category-input').value = p.category || '';
+  document.getElementById('pattern-freee-code-input').value = p.freeeCode || '';
   populatePatternDeptSelect(p.dept || '');
   if (p.halfday) toggleHalfdayPattern(); else toggleAlldayPattern();
   openModal('pattern-modal');
@@ -5081,6 +5111,7 @@ function savePattern() {
     yukyuType:    (allday || halfday) ? document.getElementById('pattern-yukyu-yukyu').checked : false,
     dept:         document.getElementById('pattern-dept-input').value,
     category:     document.getElementById('pattern-category-input').value,
+    freeeCode:    document.getElementById('pattern-freee-code-input').value.trim(),
   };
   // 実働時間を自動計算（終日=0、半日は設定した時間から計算、通常勤務は start〜end から計算）
   data.hours = data.allday ? 0 : calcPatternHours(data.start, data.end, data.breakMinutes);
@@ -5791,16 +5822,15 @@ function exportFreeeCSV() {
           patternCode = '0060';
           const ft = flexTimes[key];
           if (ft) { startTime = ft.start || ''; endTime = ft.end || ''; }
-        } else if (FREEE_PATTERN_MAP[shiftId]) {
-          patternCode = FREEE_PATTERN_MAP[shiftId];
         } else {
-          // IDベースで見つからない場合はパターン名でフォールバック検索
+          // ① パターンのfreeeCodeフィールドを優先参照
           const _pat = patById(shiftId);
-          const _nameCode = _pat ? FREEE_PATTERN_NAME_MAP[_pat.name] : null;
-          if (_nameCode) {
-            patternCode = _nameCode;
-            const _p = _pat;
-            if (_p && !_p.allday) { startTime = _p.start || ''; endTime = _p.end || ''; }
+          const _code = (_pat && _pat.freeeCode && _pat.freeeCode.trim())
+            ? _pat.freeeCode.trim()
+            : (FREEE_PATTERN_MAP[shiftId] || (_pat ? FREEE_PATTERN_NAME_MAP[_pat.name] : null));
+          if (_code) {
+            patternCode = _code;
+            if (_pat && !_pat.allday) { startTime = _pat.start || ''; endTime = _pat.end || ''; }
           } else {
             continue; // マッピング未定義のパターンはスキップ
           }
@@ -6538,7 +6568,58 @@ function renderAccountSettings() {
   updateSysPreview();
   // フレックステンプレート一覧
   renderFlexTemplates();
+  // freee連携設定一覧
+  renderFreeeMapping();
 }
+function renderFreeeMapping() {
+  const list = document.getElementById('freee-mapping-list');
+  if (!list) return;
+  // 休暇系（有休・欠勤）と部署別勤務パターンのみ表示（公休・希望休はfreeeエクスポート不要）
+  const targets = PATTERNS.filter(p => !(p.id === 'P001' || p.id === 'P003'));
+  if (targets.length === 0) { list.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">パターンがありません</div>'; return; }
+  list.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 120px 80px;gap:6px 12px;align-items:center;font-size:11px;font-weight:600;color:var(--text-muted);padding:0 4px 6px;border-bottom:1px solid var(--border);margin-bottom:8px;">
+      <span>パターン名</span><span>freeeコード</span><span>状態</span>
+    </div>
+    ${targets.map(p => {
+      const hasCode = !!(p.freeeCode && p.freeeCode.trim());
+      const statusHtml = hasCode
+        ? `<span style="color:var(--success);font-size:11px;font-weight:600;">✅ 設定済み</span>`
+        : `<span style="color:#D97706;font-size:11px;font-weight:600;">⚠️ 未設定</span>`;
+      const deptBadge = p.dept ? `<span style="font-size:9px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;margin-left:4px;">${p.dept}</span>` : `<span style="font-size:9px;background:#EDE9FE;color:#5B21B6;border-radius:4px;padding:1px 5px;margin-left:4px;">共通</span>`;
+      return `<div style="display:grid;grid-template-columns:1fr 120px 80px;gap:6px 12px;align-items:center;padding:4px 4px;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;font-weight:600;">
+          <span class="shift-badge" style="background:${p.bg};color:${p.fg};font-size:10px;padding:1px 6px;">${p.name}</span>${deptBadge}
+        </span>
+        <input class="form-input" type="text" data-pat-id="${p.id}" value="${p.freeeCode || ''}"
+          placeholder="例: 0001" style="font-family:monospace;font-size:12px;padding:4px 8px;text-align:center;">
+        ${statusHtml}
+      </div>`;
+    }).join('')}`;
+}
+
+function saveFreeeMapping() {
+  const inputs = document.querySelectorAll('#freee-mapping-list input[data-pat-id]');
+  let updated = 0;
+  inputs.forEach(input => {
+    const patId = input.getAttribute('data-pat-id');
+    const code  = input.value.trim();
+    const pat   = PATTERNS.find(p => p.id === patId);
+    if (pat && pat.freeeCode !== code) {
+      pat.freeeCode = code;
+      updated++;
+    }
+  });
+  if (updated > 0) {
+    _rebuildPatCache();
+    fbSave('/patterns', PATTERNS);
+    showToast(`✅ freeeコードを ${updated} 件保存しました`);
+    renderFreeeMapping();
+  } else {
+    showToast('変更はありませんでした');
+  }
+}
+
 function renderFlexTemplates() {
   const list = document.getElementById('flex-tpl-list');
   if (!list) return;
