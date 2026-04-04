@@ -2044,19 +2044,6 @@ async function fbLoad() {
           dept:'', category:'', group:'休暇' });
         migrated = true;
       }
-      // 午前有休・午後有休 パターンが存在しなければ自動作成
-      const halfYukyuDefs = [
-        { name:'午前有休', bg:'#C3E6CB', fg:'#0B4F23' },
-        { name:'午後有休', bg:'#A8D5B5', fg:'#0B4F23' },
-      ];
-      halfYukyuDefs.forEach(def => {
-        if (!PATTERNS.find(p => p.name === def.name)) {
-          PATTERNS.push({ id: generatePatId(), name: def.name, start:'', end:'', hours:0,
-            breakMinutes:0, breaks:[], bg:def.bg, fg:def.fg,
-            allday:false, halfday:true, yukyuType:true, dept:'', category:'', group:'休暇' });
-          migrated = true;
-        }
-      });
       // groupフィールド未設定の全部署共通パターンに自動付与（マイグレーション）
       const _autoGroupMap = {
         '公休':'休暇', '有休':'休暇', '希望休':'休暇', '欠勤':'休暇',
