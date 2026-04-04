@@ -570,6 +570,7 @@
             <button class="btn btn-outline btn-sm" id="btn-publish-month" onclick="togglePublishMonth()" title="公開するとスタッフに変更通知が届くようになります">📢 公開</button>
             <button class="btn btn-outline btn-sm" onclick="openOrderModal()">↕ 表示順</button>
             <button class="btn btn-outline btn-sm" onclick="exportShiftCSV()">📤 CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportFreeeCSV()" title="freee勤怠管理インポート用CSV">🔗 freee出力</button>
             <button class="btn btn-save-shift btn btn-sm" id="btn-save-shift" onclick="saveShiftTable()" style="display:none">💾 保存</button>
           </div>
         </div>
@@ -5571,6 +5572,97 @@ function exportShiftCSV() {
   });
   downloadCSV(csv, `シフト表_${year}年${month}月.csv`);
 }
+// ===== freee勤怠管理 インポートCSV出力 =====
+// 現システムのパターンID → freeeパターンコード マッピング
+const FREEE_PATTERN_MAP = {
+  'P004': '0001', // フ早
+  'P005': '0002', // フA
+  'P006': '0003', // フB番
+  'P007': '0004', // フ遅番
+  'P008': '0005', // フ超遅
+  'P009': '0006', // フ中抜け
+  'P010': '0010', // ル超早
+  'P011': '0011', // ル早番
+  'P012': '0012', // ル遅番
+  'P013': '0013', // ル中抜け
+  'P014': '0014', // ル通し
+  'P015': '0020', // 掃8時
+  'P016': '0021', // 掃9時
+  'P017': '0030', // 板早番
+  'P018': '0031', // 板A番
+  'P019': '0032', // 調パ朝番
+  'P020': '0033', // 調パ午前
+  'P021': '0034', // 調パ午後
+  'P022': '0040', // 共用中抜け
+  'P023': '0041', // 共用午前
+  'P024': '0042', // 共用午後
+  'P025': '0050', // 夜警
+  'PFLEX': '0060', // フレックス
+};
+
+// freeeインポート対象外のスタッフID
+const FREEE_EXCLUDE_STAFF = new Set(['B00101', 'B00102']);
+
+function exportFreeeCSV() {
+  const { year, month } = currentMonth;
+  const days = daysInMonth(year, month);
+
+  // ヘッダ（freeeのテンプレートに合わせた列順）
+  const headers = ['勤務日', '従業員コード', 'パターンコード', '出勤予定', '退勤予定', '休憩開始予定', '休憩終了予定', '全日休暇'];
+  const rows = [headers.join(',')];
+
+  getOrderedStaff().forEach(s => {
+    // freee未登録スタッフはスキップ
+    if (FREEE_EXCLUDE_STAFF.has(s.id)) return;
+
+    for (let d = 1; d <= days; d++) {
+      const key = `${year}-${month}-${d}-${s.id}`;
+      const shiftId = shiftData[key] || '';
+      if (!shiftId) continue; // 未入力セルはスキップ
+
+      // 日付を YYYY/MM/DD 形式にゼロ埋め
+      const dateStr = `${year}/${String(month).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+
+      let patternCode = '';
+      let startTime   = '';
+      let endTime     = '';
+      let breakStart  = '';
+      let breakEnd    = '';
+      let allDayLeave = '';
+
+      if (shiftId === 'P002') {
+        // 有休
+        allDayLeave = '有休';
+      } else if (shiftId === 'P001' || shiftId === 'P003') {
+        // 公休・希望休（公休扱い）
+        allDayLeave = '公休';
+      } else if (shiftId === 'PFLEX') {
+        // フレックス：flexTimesから時刻取得
+        patternCode = '0060';
+        const ft = flexTimes[key];
+        if (ft) {
+          startTime = ft.start || '';
+          endTime   = ft.end   || '';
+        }
+      } else if (FREEE_PATTERN_MAP[shiftId]) {
+        // 通常パターン：パターンコードのみ（時刻はfreee側定義を使用）
+        patternCode = FREEE_PATTERN_MAP[shiftId];
+      } else {
+        // 未対応パターンはスキップ
+        continue;
+      }
+
+      rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave].join(','));
+    }
+  });
+
+  // Shift-JIS変換（freeeはShift-JIS推奨）
+  // ブラウザ環境ではUTF-8 BOM付きで出力し、freee側の対応を確認する
+  const filename = `freee_schedule_${year}${String(month).padStart(2,'0')}.csv`;
+  downloadCSV(rows.join('\n') + '\n', filename);
+  showToast(`📤 freeeインポート用CSV（${rows.length - 1}件）をダウンロードしました`);
+}
+
 function downloadCSV(content, filename) {
   const bom = '\uFEFF';
   const blob = new Blob([bom+content], { type:'text/csv;charset=utf-8' });
