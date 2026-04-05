@@ -1192,9 +1192,11 @@
 
 <!-- コンテキストメニュー: シフト固定 -->
 <div id="fixed-context-menu" style="display:none;">
-  <div id="fcm-halfday-kokyu" class="fcm-item" onclick="setHalfDay('kokyu')" style="color:#7C3AED;">🌗 半休にする（公休）</div>
-  <div id="fcm-halfday-yukyu" class="fcm-item" onclick="setHalfDay('yukyu')" style="color:#059669;">🌗 半休にする（有休）</div>
-  <div id="fcm-halfday-unset" class="fcm-item" onclick="setHalfDay(null)"  style="color:#7C3AED;">🌗 半休を解除する</div>
+  <div id="fcm-halfday-AM_kokyu" class="fcm-item" onclick="setHalfDay('AM_kokyu')" style="color:#7C3AED;">🌗 半休AM（公休）</div>
+  <div id="fcm-halfday-PM_kokyu" class="fcm-item" onclick="setHalfDay('PM_kokyu')" style="color:#7C3AED;">🌗 半休PM（公休）</div>
+  <div id="fcm-halfday-AM_yukyu" class="fcm-item" onclick="setHalfDay('AM_yukyu')" style="color:#059669;">🌗 半休AM（有休）</div>
+  <div id="fcm-halfday-PM_yukyu" class="fcm-item" onclick="setHalfDay('PM_yukyu')" style="color:#059669;">🌗 半休PM（有休）</div>
+  <div id="fcm-halfday-unset" class="fcm-item" onclick="setHalfDay(null)" style="color:#DC2626;">🌗 半休を解除する</div>
   <div class="fcm-divider" style="height:1px;background:var(--border);margin:2px 0;"></div>
   <div id="fcm-lock"   class="fcm-item" onclick="openFixedModal()">🔒 このシフトを固定する</div>
   <div id="fcm-unlock" class="fcm-item" style="color:var(--danger);" onclick="clearShiftFixed()">🔓 固定を解除する</div>
@@ -2224,6 +2226,13 @@ function fbStartListeners() {
   // シフト固定フラグのリアルタイム同期
   _db.ref('/halfDayFlags').on('value', snap => {
     halfDayFlags = snap.val() || {};
+    // 旧形式('kokyu'/'yukyu')を新形式('AM_kokyu'/'AM_yukyu')にマイグレーション
+    let _hdMigrated = false;
+    Object.keys(halfDayFlags).forEach(k => {
+      if (halfDayFlags[k] === 'kokyu') { halfDayFlags[k] = 'AM_kokyu'; _hdMigrated = true; }
+      if (halfDayFlags[k] === 'yukyu') { halfDayFlags[k] = 'AM_yukyu'; _hdMigrated = true; }
+    });
+    if (_hdMigrated) fbSave('/halfDayFlags', halfDayFlags);
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-shift-table') renderMainShiftTable();
     if (pid === 'page-all-shift')   renderAllShiftTable();
@@ -2534,10 +2543,11 @@ function openFixedMenu(event, key) {
   const sid = shiftData[key] || '';
   const pat = patById(sid);
   const canHalfDay  = sid && pat && !pat.allday; // 終日パターン以外に半休可
-  const halfDayType = halfDayFlags[key] || null; // 'kokyu' / 'yukyu' / null
-  document.getElementById('fcm-halfday-kokyu').style.display = (canHalfDay && halfDayType !== 'kokyu') ? 'flex' : 'none';
-  document.getElementById('fcm-halfday-yukyu').style.display = (canHalfDay && halfDayType !== 'yukyu') ? 'flex' : 'none';
-  document.getElementById('fcm-halfday-unset').style.display = (canHalfDay && halfDayType)             ? 'flex' : 'none';
+  const halfDayType = halfDayFlags[key] || null; // 'AM_kokyu'/'PM_kokyu'/'AM_yukyu'/'PM_yukyu'/null
+  ['AM_kokyu','PM_kokyu','AM_yukyu','PM_yukyu'].forEach(t => {
+    document.getElementById('fcm-halfday-' + t).style.display = (canHalfDay && halfDayType !== t) ? 'flex' : 'none';
+  });
+  document.getElementById('fcm-halfday-unset').style.display = (canHalfDay && halfDayType) ? 'flex' : 'none';
   // ページ端を超えないよう位置調整
   const x = Math.min(event.clientX, window.innerWidth  - 180);
   const y = Math.min(event.clientY, window.innerHeight - 100);
@@ -2594,27 +2604,24 @@ function clearShiftFixed(key) {
 function setHalfDay(type) {
   const key = _fixedTargetKey;
   if (!key) return;
-  const prevType = halfDayFlags[key] || null; // 変更前の種別
+  const prevType = halfDayFlags[key] || null;
 
-  // 有休残の調整：半休（有休）の設定/解除に応じて ±0.5 する
-  // 対象は通常勤務パターン（有休系パターン自体は paintShift で残高管理済み）
+  // 有休残の調整：有休系半休の設定/解除に応じて ±0.5
   const shiftId = shiftData[key];
-  const isNormalShift = shiftId && !_yukyuCost(shiftId); // 有休コスト0=通常勤務
+  const isNormalShift = shiftId && !_yukyuCost(shiftId);
   const parts = key.split('-');
   const s = isNormalShift ? STAFF.find(x => x.id === parts[3]) : null;
+  const prevIsYukyu = prevType && prevType.includes('yukyu');
+  const newIsYukyu  = type && type.includes('yukyu');
 
-  if (type === 'kokyu') {
-    halfDayFlags[key] = 'kokyu';
-    // 前が yukyu だった場合、有休残を +0.5 戻す
-    if (prevType === 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+  if (type) {
+    // 有休→公休 or 有休→解除: 残 +0.5
+    if (prevIsYukyu && !newIsYukyu && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
       s.paidLeaveBalance = Math.min(s.paidLeaveBalance + 0.5, 40);
       fbSaveStaffOverrides();
     }
-    showToast('🌗 半休（公休）を設定しました（0.5日カウント）');
-  } else if (type === 'yukyu') {
-    halfDayFlags[key] = 'yukyu';
-    // 前が yukyu でない場合のみ有休残 -0.5
-    if (prevType !== 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+    // 公休→有休 or 新規有休: 残 -0.5
+    if (newIsYukyu && !prevIsYukyu && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
       if ((s.paidLeaveBalance || 0) <= 0) {
         showToast(`⛔ ${s.name}さんの有休残日数が0日です。有休を付与できません。`);
         return;
@@ -2622,15 +2629,18 @@ function setHalfDay(type) {
       s.paidLeaveBalance = Math.max(0, s.paidLeaveBalance - 0.5);
       fbSaveStaffOverrides();
     }
-    showToast('🌗 半休（有休）を設定しました（有休0.5日消費）');
+    halfDayFlags[key] = type;
+    const label = type === 'AM_kokyu' ? 'AM（公休）' : type === 'PM_kokyu' ? 'PM（公休）'
+                : type === 'AM_yukyu' ? 'AM（有休）' : 'PM（有休）';
+    showToast(`🌗 半休${label}を設定しました`);
   } else {
-    // 解除：前が yukyu だったなら有休残 +0.5 戻す
-    if (prevType === 'yukyu' && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
+    // 解除：有休だった場合 残 +0.5
+    if (prevIsYukyu && s && s.paidLeaveBalance !== null && s.paidLeaveBalance !== undefined) {
       s.paidLeaveBalance = Math.min(s.paidLeaveBalance + 0.5, 40);
       fbSaveStaffOverrides();
     }
     delete halfDayFlags[key];
-    showToast('🌗 半休を解除しました（1日カウントに戻りました）');
+    showToast('🌗 半休を解除しました');
   }
   fbSave('/halfDayFlags', halfDayFlags);
   renderMainShiftTable();
@@ -3583,12 +3593,12 @@ function renderMainShiftTable() {
         _draftFromHtml  = `<span class="draft-from-badge" title="変更前: ${_fromName}">${_fromName.slice(0,2)}</span>`;
         _badgeTitle     = `下書き変更: ${_fromName} → ${sName}（未通知）`;
       }
-      if (_halfDayType === 'kokyu') _badgeTitle += '（半休・公休）';
-      if (_halfDayType === 'yukyu') _badgeTitle += '（半休・有休）';
-      const _halfdayBadgeHtml = _halfDayType === 'yukyu'
-        ? `<span class="halfday-badge" style="background:#059669;">半有</span>`
-        : _halfDayType === 'kokyu'
-          ? `<span class="halfday-badge">半</span>`
+      if (_halfDayType && _halfDayType.includes('kokyu')) _badgeTitle += `（半休${_halfDayType.startsWith('AM')?'AM':'PM'}・公休）`;
+      if (_halfDayType && _halfDayType.includes('yukyu')) _badgeTitle += `（半休${_halfDayType.startsWith('AM')?'AM':'PM'}・有休）`;
+      const _halfdayBadgeHtml = _halfDayType && _halfDayType.includes('yukyu')
+        ? `<span class="halfday-badge" style="background:#059669;">${_halfDayType.startsWith('AM')?'AM':'PM'}有</span>`
+        : _halfDayType && _halfDayType.includes('kokyu')
+          ? `<span class="halfday-badge">${_halfDayType.startsWith('AM')?'AM':'PM'}休</span>`
           : '';
       tbody += `<td class="shift-cell${d===_todayD?' today-col':''}${_isPendingCell?' pending-cell':''}${_isDraftCell?' draft-cell':''}"
         data-key="${key}"
@@ -3858,8 +3868,8 @@ function countRestDays(staffId, fiscalYear) {
     const _hdt = halfDayFlags[key] || null;
     if (_hdt) {
       // 半休フラグ付き通常勤務（公休0.5 or 有休0.5）
-      if (_hdt === 'yukyu') { counts['有休'] += 0.5; counts.total += 0.5; }
-      else                  { counts['公休'] += 0.5; counts.total += 0.5; }
+      if (_hdt.includes('yukyu')) { counts['有休'] += 0.5; counts.total += 0.5; }
+      else                        { counts['公休'] += 0.5; counts.total += 0.5; }
       continue;
     }
     if (!pat || (!pat.allday && !pat.halfday)) continue;
@@ -5292,8 +5302,8 @@ function renderReport() {
           const _hdt = halfDayFlags[`${year}-${month}-${d}-${s.id}`] || null;
           const _hdCost = _hdt ? 0.5 : 1;
           workCount += _hdCost;
-          if (_hdt === 'yukyu') yukuCount += 0.5;   // 半休（有休）は有休0.5消費
-          else if (_hdt === 'kokyu') kyuCount += 0.5; // 半休（公休）は公休0.5
+          if (_hdt && _hdt.includes('yukyu')) yukuCount += 0.5;
+          else if (_hdt && _hdt.includes('kokyu')) kyuCount += 0.5;
           if (pat.category && catCounts.hasOwnProperty(pat.category)) {
             catCounts[pat.category] += _hdCost;
           }
@@ -5904,24 +5914,28 @@ function exportFreeeCSV() {
         let patternCode = '', startTime = '', endTime = '', breakStart = '', breakEnd = '', allDayLeave = '', halfLeaveType = '';
 
         // 半休フラグを取得
-        const _halfType = halfDayFlags[key] || null; // 'yukyu' / 'kokyu' / null
+        const _halfType = halfDayFlags[key] || null; // 'AM_yukyu'/'PM_yukyu'/'AM_kokyu'/'PM_kokyu'/null
+
+        // 半休種別名称の生成（AM/PM × 公休/有休）
+        // 確認済みfreee形式: 全日休暇=空, 半休種別名称=AM公休/PM公休/AM有休/PM有休
+        const _halfAmPm = _halfType ? (_halfType.startsWith('AM') ? 'AM' : 'PM') : '';
+        const _halfIsYukyu = _halfType && _halfType.includes('yukyu');
+        const _halfIsKokyu = _halfType && _halfType.includes('kokyu');
 
         if (shiftId === 'P002') {
           // 有休：残日数0なら欠勤として出力
           if (forceKekkin) { allDayLeave = '欠勤'; kekkinCount++; }
-          else if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
           else { allDayLeave = '有休'; }
         } else if (shiftId === 'P026') {
           allDayLeave = '欠勤';
         } else if (shiftId === 'P001' || shiftId === 'P003') {
-          if (_halfType === 'kokyu') { allDayLeave = '[半日]公休'; }
-          else { allDayLeave = '公休'; }
+          allDayLeave = '公休';
         } else if (shiftId === 'PFLEX') {
           patternCode = '0060';
           const ft = flexTimes[key];
           if (ft) { startTime = ft.start || ''; endTime = _toFreeeTime(ft.start, ft.end); }
-          // フレックス＋半休（有休のみ対応。公休はfreeeが勤務パターンとの併用不可のためスキップ）
-          if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
+          // 通常勤務+半休: 半休種別名称列に出力
+          if (_halfType) halfLeaveType = _halfAmPm + (_halfIsYukyu ? '有休' : '公休');
         } else {
           // ① パターンのfreeeCodeフィールドを優先参照
           const _pat = patById(shiftId);
@@ -5934,8 +5948,8 @@ function exportFreeeCSV() {
               startTime = _pat.start || '';
               endTime = _toFreeeTime(_pat.start, _pat.end);
             }
-            // 通常勤務＋半休（有休のみ対応。公休はfreeeが勤務パターンとの併用不可のためスキップ）
-            if (_halfType === 'yukyu') { allDayLeave = '[半日]有休'; }
+            // 通常勤務+半休: 半休種別名称列に出力
+            if (_halfType) halfLeaveType = _halfAmPm + (_halfIsYukyu ? '有休' : '公休');
           } else {
             continue; // マッピング未定義のパターンはスキップ
           }
@@ -6309,10 +6323,10 @@ function renderMyShift() {
       timeHtml = `<div class="my-day-time">${p.start}〜</div>`;
     }
     const _myHalfType = halfDayFlags[`${year}-${month}-${d}-${staffId}`] || null;
-    const _myHalfBadge = _myHalfType === 'yukyu'
-      ? `<span style="font-size:9px;background:#059669;color:#fff;border-radius:3px;padding:0 3px;margin-left:2px;vertical-align:middle;">半有</span>`
-      : _myHalfType === 'kokyu'
-        ? `<span style="font-size:9px;background:#7C3AED;color:#fff;border-radius:3px;padding:0 3px;margin-left:2px;vertical-align:middle;">半</span>`
+    const _myHalfBadge = _myHalfType && _myHalfType.includes('yukyu')
+      ? `<span style="font-size:9px;background:#059669;color:#fff;border-radius:3px;padding:0 3px;margin-left:2px;vertical-align:middle;">${_myHalfType.startsWith('AM')?'AM':'PM'}有</span>`
+      : _myHalfType && _myHalfType.includes('kokyu')
+        ? `<span style="font-size:9px;background:#7C3AED;color:#fff;border-radius:3px;padding:0 3px;margin-left:2px;vertical-align:middle;">${_myHalfType.startsWith('AM')?'AM':'PM'}休</span>`
         : '';
     cells += `<div class="${dayClass}">
       <div class="my-day-header">
@@ -6377,7 +6391,7 @@ function renderMyShift() {
         <div class="my-shift-info">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shift}</span>
-            ${_upcoming7HalfType === 'yukyu' ? `<span style="background:#059669;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休（有休）</span>` : _upcoming7HalfType === 'kokyu' ? `<span style="background:#7C3AED;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休（公休）</span>` : ''}
+            ${_upcoming7HalfType && _upcoming7HalfType.includes('yukyu') ? `<span style="background:#059669;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休${_upcoming7HalfType.startsWith('AM')?'AM':'PM'}（有休）</span>` : _upcoming7HalfType && _upcoming7HalfType.includes('kokyu') ? `<span style="background:#7C3AED;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休${_upcoming7HalfType.startsWith('AM')?'AM':'PM'}（公休）</span>` : ''}
             ${isShukuchoDay ? `<span style="background:#EDE7F6;color:#4A235A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">宿直</span>` : ''}
             ${hoursText ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">${hoursText}</span>` : ''}
           </div>
