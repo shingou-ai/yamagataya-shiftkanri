@@ -807,7 +807,7 @@
             <button class="month-nav-btn" onclick="changeMonth(1,'all-shift')">›</button>
           </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;" id="all-shift-legend"></div>
+        <div style="display:none;" id="all-shift-legend"></div>
         <div class="shift-table-wrap"><table class="shift-table" id="all-shift-table"></table></div>
       </div>
 
@@ -3582,7 +3582,10 @@ function renderMainShiftTable() {
         _badgeTitle = ft && ft.start && ft.end ? `フレックス: ${ft.start}〜${ft.end}` : 'フレックス（時間未設定）';
       } else {
         _badgeLabel = sName.slice(0, 2);
-        _badgeTitle = sName;
+        // 時刻登録済みのパターンはツールチップに開始〜終了時刻を表示
+        _badgeTitle = (p && !p.allday && !p.halfday && p.start && p.end)
+          ? `${p.start}〜${p.end}`
+          : sName;
       }
       // 下書きセルの場合：変更前パターンを小さく表示
       let _draftFromHtml = '';
@@ -4561,6 +4564,7 @@ function renderAllShiftTable() {
       else if (isOff)  off += 1;
       const bg = p ? p.bg : '#E9ECEF'; const fg = p ? p.fg : '#6c757d';
       const _isFlexCell2 = p ? !!p.flex : false;
+      const _halfDayType2 = halfDayFlags[`${year}-${month}-${d}-${s.id}`] || null;
       let _aLabel, _aTimeStr;
       if (_isFlexCell2) {
         const ft = flexTimes[`${year}-${month}-${d}-${s.id}`];
@@ -4570,11 +4574,21 @@ function renderAllShiftTable() {
         _aLabel    = sName.slice(0, 2);
         _aTimeStr  = p ? (p.allday ? '終日' : p.halfday ? '半日' : `${p.start}〜${p.end}`) : '';
       }
-      const timeAttr  = _aTimeStr ? ` title="${_isFlexCell2 ? _aTimeStr : sName + ' ' + _aTimeStr}"` : ` title="${sName}"`;
+      // 時刻登録済みのパターンはツールチップに開始〜終了時刻のみ表示
+      const _hasRealTime2 = !_isFlexCell2 && p && !p.allday && !p.halfday && p.start && p.end;
+      let _tooltipText2 = _isFlexCell2 ? _aTimeStr : (_hasRealTime2 ? _aTimeStr : (sName + (_aTimeStr ? ' ' + _aTimeStr : '')));
+      if (_halfDayType2 && _halfDayType2.includes('kokyu')) _tooltipText2 += `（半休${_halfDayType2.startsWith('AM')?'AM':'PM'}・公休）`;
+      if (_halfDayType2 && _halfDayType2.includes('yukyu')) _tooltipText2 += `（半休${_halfDayType2.startsWith('AM')?'AM':'PM'}・有休）`;
+      const timeAttr  = ` title="${_tooltipText2}"`;
       const timeClick = _aTimeStr && !_isFlexCell2 ? ` onclick="showShiftTimePopup(this,'${sName} ${_aTimeStr}')"` : '';
       const timeHover = _aTimeStr && !_isFlexCell2 ? ` onmouseenter="showShiftTimeTooltip(this,'${_aTimeStr}')" onmouseleave="hideShiftTimeTooltip()"` : '';
+      const _halfdayBadge2 = _halfDayType2 && _halfDayType2.includes('yukyu')
+        ? `<span class="halfday-badge" style="background:#059669;">${_halfDayType2.startsWith('AM')?'AM':'PM'}有</span>`
+        : _halfDayType2 && _halfDayType2.includes('kokyu')
+          ? `<span class="halfday-badge">${_halfDayType2.startsWith('AM')?'AM':'PM'}休</span>`
+          : '';
       tbody += `<td class="shift-cell${d===_tD?' today-col':''}" style="cursor:default;">
-        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${_aLabel}</span>
+        <span class="shift-badge" style="background:${bg};color:${fg}"${timeAttr}${timeHover}${timeClick}>${_aLabel}</span>${_halfdayBadge2}
       </td>`;
     }
     tbody += `<td style="text-align:center;font-weight:700;padding:4px 6px;">${fmtCount(work)}</td>`;
@@ -5894,16 +5908,17 @@ function exportFreeeCSV() {
     }
   });
 
-  // ── ② 変換がある場合は確認ダイアログ → OKなら出力 ──
-  const _doExport = () => {
+  // ── ② CSVデータ生成（共通ロジック） ──
+  const _buildRows = () => {
     const rows = [
       '#勤務日,従業員コード,パターンコード,出勤予定,退勤予定,休憩開始予定,休憩終了予定,全日休暇,半休種別名称',
     ];
     let dataCount = 0, kekkinCount = 0;
+    const halfLeaveItems = []; // 半休あり行の記録 { date, staffName, patName, halfLeaveType }
 
     getOrderedStaff().forEach(s => {
       if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
-      const forceKekkin = kekkinStaffSet.has(s.id); // 有休→欠勤変換対象
+      const forceKekkin = kekkinStaffSet.has(s.id);
 
       for (let d = 1; d <= days; d++) {
         const key = `${year}-${month}-${d}-${s.id}`;
@@ -5912,32 +5927,29 @@ function exportFreeeCSV() {
 
         const dateStr = `${year}/${String(month).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
         let patternCode = '', startTime = '', endTime = '', breakStart = '', breakEnd = '', allDayLeave = '', halfLeaveType = '';
+        let patDisplayName = '';
 
-        // 半休フラグを取得
-        const _halfType = halfDayFlags[key] || null; // 'AM_yukyu'/'PM_yukyu'/'AM_kokyu'/'PM_kokyu'/null
-
-        // 半休種別名称の生成（AM/PM × 公休/有休）
-        // 確認済みfreee形式: 全日休暇=空, 半休種別名称=AM公休/PM公休/AM有休/PM有休
+        const _halfType = halfDayFlags[key] || null;
         const _halfAmPm = _halfType ? (_halfType.startsWith('AM') ? 'AM' : 'PM') : '';
         const _halfIsYukyu = _halfType && _halfType.includes('yukyu');
-        const _halfIsKokyu = _halfType && _halfType.includes('kokyu');
 
         if (shiftId === 'P002') {
-          // 有休：残日数0なら欠勤として出力
           if (forceKekkin) { allDayLeave = '欠勤'; kekkinCount++; }
           else { allDayLeave = '有休'; }
+          patDisplayName = '有休';
         } else if (shiftId === 'P026') {
           allDayLeave = '欠勤';
+          patDisplayName = '欠勤';
         } else if (shiftId === 'P001' || shiftId === 'P003') {
           allDayLeave = '公休';
+          patDisplayName = '公休';
         } else if (shiftId === 'PFLEX') {
           patternCode = '0060';
           const ft = flexTimes[key];
           if (ft) { startTime = ft.start || ''; endTime = _toFreeeTime(ft.start, ft.end); }
-          // 通常勤務+半休: 半休種別名称列に出力
           if (_halfType) halfLeaveType = _halfAmPm + (_halfIsYukyu ? '有休' : '公休');
+          patDisplayName = 'フレックス';
         } else {
-          // ① パターンのfreeeCodeフィールドを優先参照
           const _pat = patById(shiftId);
           const _code = (_pat && _pat.freeeCode && _pat.freeeCode.trim())
             ? _pat.freeeCode.trim()
@@ -5948,11 +5960,15 @@ function exportFreeeCSV() {
               startTime = _pat.start || '';
               endTime = _toFreeeTime(_pat.start, _pat.end);
             }
-            // 通常勤務+半休: 半休種別名称列に出力
             if (_halfType) halfLeaveType = _halfAmPm + (_halfIsYukyu ? '有休' : '公休');
+            patDisplayName = (_pat ? _pat.name : shiftId) + `（${_code}）`;
           } else {
-            continue; // マッピング未定義のパターンはスキップ
+            continue;
           }
+        }
+
+        if (halfLeaveType) {
+          halfLeaveItems.push({ date: `${month}/${d}`, staffName: s.name, staffId: s.id, patDisplayName, halfLeaveType, key });
         }
 
         rows.push([dateStr, s.id, patternCode, startTime, endTime, breakStart, breakEnd, allDayLeave, halfLeaveType].join(','));
@@ -5960,24 +5976,45 @@ function exportFreeeCSV() {
       }
     });
 
+    return { rows, dataCount, kekkinCount, halfLeaveItems };
+  };
+
+  const _doExport = () => {
+    const { rows, dataCount, kekkinCount } = _buildRows();
     const csvText = rows.join('\r\n') + '\r\n';
     const filename = `freee_schedule_${year}${String(month).padStart(2,'0')}.csv`;
     downloadFreeeCSV(csvText, filename);
     showToast(`📤 freeeインポート用CSV（${dataCount}件 / うち欠勤変換${kekkinCount}件）をダウンロードしました`);
   };
 
+  // ── ③ 半休フラグの確認ダイアログ ──
+  const _checkAndExport = () => {
+    const { halfLeaveItems } = _buildRows();
+    if (halfLeaveItems.length > 0) {
+      const detail = halfLeaveItems.map(item =>
+        `・${item.staffName}（${item.staffId}）${item.date} ─ ${item.patDisplayName} ＋ ${item.halfLeaveType}`
+      ).join('\n');
+      showConfirm(
+        `🌗 半休設定が ${halfLeaveItems.length} 件あります（確認してください）`,
+        `以下のセルに半休フラグが設定されています。意図しない設定がある場合は「キャンセル」してシフト表で右クリック→「半休を解除する」を選択してください。\n\n${detail}\n\nこのまま出力しますか？`,
+        _doExport, '出力する', false
+      );
+    } else {
+      _doExport();
+    }
+  };
+
   if (kekkinConversions.length > 0) {
-    // 変換一覧を確認ダイアログで表示
     const detail = kekkinConversions.map(c =>
       `・${c.name}（${c.days.join('、')}）`
     ).join('\n');
     showConfirm(
       `⚠️ 有休残日数不足のため欠勤に変換します（${kekkinConversions.length}名）`,
       `以下のスタッフは有休残日数が0日のため、有休セルを「欠勤」として出力します：\n\n${detail}\n\nこのまま出力しますか？`,
-      _doExport, '出力する', false
+      _checkAndExport, '出力する', false
     );
   } else {
-    _doExport();
+    _checkAndExport();
   }
 }
 
