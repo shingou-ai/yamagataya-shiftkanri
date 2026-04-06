@@ -1793,8 +1793,9 @@ let _fbAuthReady = false;
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // 匿名認証でサインイン（読み取り専用。管理者はログイン時にメール/パスワード認証に切り替え）
-    firebase.auth().signInAnonymously()
+    // 既にサインイン済みならそのまま使用、未サインインなら匿名認証
+    const _existingUser = firebase.auth().currentUser;
+    (_existingUser ? Promise.resolve(_existingUser) : firebase.auth().signInAnonymously())
       .then(() => Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
@@ -2491,7 +2492,10 @@ function doLogin() {
     const _loginPw = loginPw;
     firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _loginPw)
       .then(() => { _enterApp(false); })
-      .catch(() => { _enterApp(false); }); // Firebase認証失敗でも画面は開く
+      .catch(() => {
+        // Firebase認証失敗時は匿名認証に戻してから画面を開く
+        firebase.auth().signInAnonymously().catch(() => {}).then(() => { _enterApp(false); });
+      });
     return;
   }
   _enterApp(false);
