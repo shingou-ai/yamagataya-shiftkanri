@@ -4524,6 +4524,17 @@ function renderAllShiftTable() {
   const activeStaff = getOrderedStaff();
   const table = document.getElementById('all-shift-table');
   if (!table) return;
+
+  // スタッフは未公開月を閲覧不可
+  if (currentRole !== 'admin' && !publishedMonths[`${year}-${month}`]) {
+    table.innerHTML = `<tbody><tr><td colspan="99" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px;">${year}年${month}月のシフトはまだ公開されていません</div>
+      <div style="font-size:12px;">公開されるまでしばらくお待ちください</div>
+    </td></tr></tbody>`;
+    return;
+  }
+
   const _t = new Date();
   const _isCM = _t.getFullYear()===year && _t.getMonth()+1===month;
   const _tD = _isCM ? _t.getDate() : -1;
