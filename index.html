@@ -1791,9 +1791,8 @@ let _fbAuthReady = false;
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // 匿名認証でサインイン（セキュリティルール "auth != null" に対応）
-    // ユーザーには見えない自動処理。認証後にスタッフデータを読み込む。
-    firebase.auth().signInAnonymously()
+    // メール/パスワード認証でサインイン
+    firebase.auth().signInWithEmailAndPassword('shingo.u@spa-yamagataya.com', 'yama2288')
       .then(() => Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
