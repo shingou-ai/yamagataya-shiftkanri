@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Shift-JIS変換ライブラリ（freee CSVエクスポート用） -->
 <script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2/encoding.min.js"></script>
@@ -1787,6 +1788,11 @@ let _fbAuthReady = false;
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL) return;
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
+    // App Check（reCAPTCHA v3）で登録済みドメインからのアクセスのみ許可
+    firebase.appCheck().activate(
+      new firebase.appCheck.ReCaptchaV3Provider('6Lf4ZqksAAAAOLqKNsiCXMft9mUx5xyd77Met0w'),
+      true // トークン自動更新
+    );
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
