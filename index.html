@@ -3219,6 +3219,13 @@ function doLogout() {
   _isAdminAccount = false;
   // 匿名認証に戻す（読み取り専用に降格）
   if (_fbReady) firebase.auth().signInAnonymously().catch(() => {});
+  // ロール・フォームをリセット
+  selectRole('staff');
+  const idEl = document.getElementById('login-id');
+  const pwEl = document.getElementById('login-pw');
+  if (idEl) idEl.value = '';
+  if (pwEl) pwEl.value = '';
+  document.getElementById('login-error').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   selectedPalette = null;
