@@ -2353,7 +2353,9 @@ function selectRole(r) {
   currentRole = r;
   document.getElementById('role-admin').classList.toggle('active', r==='admin');
   document.getElementById('role-staff').classList.toggle('active', r==='staff');
-  document.getElementById('login-id').value = r==='admin' ? ADMIN.id : 'S001';
+  document.getElementById('login-id').value = r==='admin' ? ADMIN.id : '';
+  document.getElementById('login-pw').value = '';
+  document.getElementById('login-error').style.display = 'none';
 }
 // ===== セッション管理（30日間自動ログイン）=====
 const _SESSION_KEY = 'ymShiftSession';
