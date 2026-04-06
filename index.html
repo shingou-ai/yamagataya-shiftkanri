@@ -7087,15 +7087,22 @@ function showToast(msg) {
 // ===== シフト時間ツールチップ（全体シフト用）=====
 let _shiftTooltipTimer = null;
 function showShiftTimeTooltip(el, text) {
-  // タッチデバイスでは無効（clickで表示）
-  if (window.matchMedia('(hover:none)').matches) return;
   const tip = document.getElementById('shift-time-tooltip');
   if (!tip) return;
   tip.textContent = text;
+  // いったん画面外で表示して寸法を確定してから正しい位置に移動
+  tip.style.left = '-9999px';
+  tip.style.top  = '-9999px';
   tip.style.display = 'block';
-  const rect = el.getBoundingClientRect();
-  tip.style.left = (rect.left + rect.width/2 - tip.offsetWidth/2) + 'px';
-  tip.style.top  = (rect.top - tip.offsetHeight - 6) + 'px';
+  const rect   = el.getBoundingClientRect();
+  const tipW   = tip.offsetWidth;
+  const tipH   = tip.offsetHeight;
+  let left = rect.left + rect.width / 2 - tipW / 2;
+  let top  = rect.top - tipH - 6;
+  if (top < 4)  top = rect.bottom + 6; // 上が切れる場合は下に表示
+  left = Math.max(4, Math.min(left, window.innerWidth - tipW - 4));
+  tip.style.left = left + 'px';
+  tip.style.top  = top  + 'px';
 }
 function hideShiftTimeTooltip() {
   const tip = document.getElementById('shift-time-tooltip');
