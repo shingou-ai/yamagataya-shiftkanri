@@ -1789,10 +1789,7 @@ let _fbAuthReady = false;
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
     // App Check（reCAPTCHA v3）で登録済みドメインからのアクセスのみ許可
-    firebase.appCheck().activate(
-      new firebase.appCheck.ReCaptchaV3Provider('6Lf4ZqksAAAAOLqKNsiCXMft9mUx5xyd77Met0w'),
-      true // トークン自動更新
-    );
+    firebase.appCheck().activate('6Lf4ZqksAAAAOLqKNsiCXMft9mUx5xyd77Met0w', true);
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
