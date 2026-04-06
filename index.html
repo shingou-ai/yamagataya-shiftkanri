@@ -4600,7 +4600,7 @@ function renderAllShiftTable() {
       // hover/click は td レベルで設定（小さい span よりヒット領域が広い）
       const _tdHover = _safeTooltip ? ` onmouseenter="showShiftTimeTooltip(this,'${_safeTooltip}')" onmouseleave="hideShiftTimeTooltip()"` : '';
       const _tdClick = _safeTooltip ? ` onclick="showShiftTimePopup(this,'${_safeTooltip}')"` : '';
-      tbody += `<td class="shift-cell${d===_tD?' today-col':''}" title="${_safeTooltip}"${_tdHover}${_tdClick} style="cursor:default;">
+      tbody += `<td class="shift-cell${d===_tD?' today-col':''}"${_tdHover}${_tdClick} style="cursor:default;">
         <span class="shift-badge" style="background:${bg};color:${fg}">${_aLabel}</span>${_halfdayBadge2}
       </td>`;
     }
