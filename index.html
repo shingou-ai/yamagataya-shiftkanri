@@ -1788,8 +1788,11 @@ let _fbAuthReady = false;
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL) return;
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
-    // App Check（reCAPTCHA v3）で登録済みドメインからのアクセスのみ許可
-    firebase.appCheck().activate('6Lf4ZqksAAAAOLqKNsiCXMft9mUx5xyd77Met0w', true);
+    // App Check（reCAPTCHA Enterprise）で登録済みドメインからのアクセスのみ許可
+    firebase.appCheck().activate(
+      new firebase.appCheck.ReCaptchaEnterpriseProvider('6LdjgqksAAAAObBXw4-yEz0umhriwUY_lUbw8Wa'),
+      true
+    );
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
