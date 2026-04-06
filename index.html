@@ -9,8 +9,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
-<script src="https://www.google.com/recaptcha/enterprise.js?render=6LdjgqksAAAAObBXw4-yEz0umhriwUY_lUbw8Wa" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <!-- Shift-JIS変換ライブラリ（freee CSVエクスポート用） -->
 <script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2/encoding.min.js"></script>
@@ -1766,6 +1764,8 @@ loadShiftNotifDismissed(); // 起動時に読み込み
 
 // ===== 管理者設定 =====
 const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '', staffId: '' };
+// Firebase管理者アカウント（メールのみ。パスワードはログイン時に入力されたものを使用）
+const ADMIN_FIREBASE_EMAIL = 'shingo.u@spa-yamagataya.com';
 // サブ管理者（スタッフIDリスト）：スタッフとして登録されているが管理者権限を持つ人
 let SUB_ADMINS = ['A00003'];
 
@@ -1789,17 +1789,12 @@ let _fbAuthReady = false;
   if (!FIREBASE_CONFIG.apiKey || !FIREBASE_CONFIG.databaseURL) return;
   try {
     firebase.initializeApp(FIREBASE_CONFIG);
-    // App Check（reCAPTCHA Enterprise）で登録済みドメインからのアクセスのみ許可
-    firebase.appCheck().activate(
-      new firebase.appCheck.ReCaptchaEnterpriseProvider('6LdjgqksAAAAObBXw4-yEz0umhriwUY_lUbw8Wa'),
-      true
-    );
     _db = firebase.database();
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // メール/パスワード認証でサインイン
-    firebase.auth().signInWithEmailAndPassword('shingo.u@spa-yamagataya.com', 'yama2288')
+    // 匿名認証でサインイン（読み取り専用。管理者はログイン時にメール/パスワード認証に切り替え）
+    firebase.auth().signInAnonymously()
       .then(() => Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
@@ -2489,6 +2484,14 @@ function doLogin() {
   }
   errEl.style.display = 'none';
   _saveSession(); // セッション保存（30日間有効）
+  // 管理者の場合はFirebaseをメール/パスワード認証に昇格（書き込み権限取得）
+  if (currentRole === 'admin' && _fbReady) {
+    const _loginPw = loginPw;
+    firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _loginPw)
+      .then(() => { _enterApp(false); })
+      .catch(() => { _enterApp(false); }); // Firebase認証失敗でも画面は開く
+    return;
+  }
   _enterApp(false);
 }
 // ===== 勤務不可申請 ヘルパー =====
@@ -3214,6 +3217,8 @@ function cancelApprovedUnavailRequest(reqId) {
 function doLogout() {
   _clearSession(); // セッション削除
   _isAdminAccount = false;
+  // 匿名認証に戻す（読み取り専用に降格）
+  if (_fbReady) firebase.auth().signInAnonymously().catch(() => {});
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
   selectedPalette = null;
