@@ -700,7 +700,10 @@
       <div class="page" id="page-paidleave">
         <div class="page-header">
           <div><div class="page-title">📋 有給管理</div><div class="page-subtitle">有休付与・残日数管理（日本労働基準法第39条準拠）</div></div>
-          <button class="btn btn-success" onclick="autoGrantAll()">⚡ 一括自動付与</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-success" onclick="autoGrantAll()">⚡ 一括自動付与</button>
+            <button class="btn btn-warning" onclick="migratePaidLeave()" style="font-size:12px;" title="ソースコードの有休残高をDBに強制反映">🔄 有休残高をDBに反映</button>
+          </div>
         </div>
         <div class="stats-grid" id="paidleave-stats"></div>
         <div class="card" style="margin-top:16px">
@@ -1424,34 +1427,34 @@ const PROPORTIONAL_LEAVE_TABLE = [
 const MILESTONE_MONTHS_LIST = [6, 18, 30, 42, 54, 66, 78]; // 固定マイルストーン月数
 
 let STAFF = [
-  { id:'A00001', name:'瓜生 泰弘',   dept:'フロント', role:'会長',    type:'正社員',    active:true, hireDate:'1978-10-01', paidLeaveBalance:20   },
+  { id:'A00001', name:'瓜生 泰弘',   dept:'フロント', role:'会長',    type:'正社員',    active:true, hireDate:'1978-10-01', paidLeaveBalance:0    },
   { id:'A00002', name:'瓜生 ふみえ', dept:'フロント', role:'女将',    type:'正社員',    active:true, hireDate:'1985-02-01', paidLeaveBalance:10   },
-  { id:'A00003', name:'瓜生 真吾',   dept:'フロント', role:'社長',    type:'正社員',    active:true, hireDate:'2014-09-01', paidLeaveBalance:10   },
+  { id:'A00003', name:'瓜生 真吾',   dept:'フロント', role:'社長',    type:'正社員',    active:true, hireDate:'2014-09-01', paidLeaveBalance:30   },
   { id:'A00004', name:'瓜生 渚',     dept:'フロント', role:'若女将',  type:'正社員',    active:true, hireDate:'2013-04-01', paidLeaveBalance:10   },
-  { id:'A00005', name:'小林 修',     dept:'フロント', role:'部長',    type:'正社員',    active:true, hireDate:'1993-12-01', paidLeaveBalance:38.5 },
-  { id:'A00006', name:'宮内 景',     dept:'フロント', role:'',        type:'正社員',    active:true, hireDate:'1997-04-01', paidLeaveBalance:16.5 },
+  { id:'A00005', name:'小林 修',     dept:'フロント', role:'部長',    type:'正社員',    active:true, hireDate:'1993-12-01', paidLeaveBalance:38   },
+  { id:'A00006', name:'宮内 景',     dept:'フロント', role:'',        type:'正社員',    active:true, hireDate:'1997-04-01', paidLeaveBalance:14.5 },
   { id:'A00007', name:'福地 隆雄',   dept:'フロント', role:'',        type:'正社員',    active:true, hireDate:'2010-04-05', paidLeaveBalance:26   },
   { id:'A00008', name:'矢吹 邦広',   dept:'フロント', role:'',        type:'正社員',    active:true, hireDate:'2020-03-01', paidLeaveBalance:34   },
   { id:'A00011', name:'田中 和男',   dept:'ルーム',   role:'リーダー',type:'正社員',    active:true, hireDate:'2016-10-18', paidLeaveBalance:20   },
   { id:'A00013', name:'小池 幸江',   dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2020-03-01', paidLeaveBalance:15   },
   { id:'A00014', name:'ランカ',      dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2021-03-01', paidLeaveBalance:28   },
-  { id:'A00015', name:'シェンヤン',  dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2021-04-01', paidLeaveBalance:16   },
+  { id:'A00015', name:'シェンヤン',  dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2021-04-01', paidLeaveBalance:15   },
   { id:'A00016', name:'森 夏希',     dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2022-04-01', paidLeaveBalance:17   },
   { id:'A00033', name:'ニサ',        dept:'ルーム',   role:'',        type:'正社員',    active:true, hireDate:'2025-05-01', paidLeaveBalance:9    },
   { id:'A00020', name:'鈴木 司',     dept:'板場',     role:'',        type:'正社員',    active:true, hireDate:'2007-06-01', paidLeaveBalance:10   },
   { id:'A00021', name:'鈴木 智史',   dept:'板場',     role:'板長',    type:'正社員',    active:true, hireDate:'2022-07-11', paidLeaveBalance:36   },
-  { id:'A00024', name:'小林 郁磨',   dept:'板場',     role:'',        type:'正社員',    active:true, hireDate:'2025-03-01', paidLeaveBalance:3    },
-  { id:'A00032', name:'猪俣 玲',     dept:'板場',     role:'',        type:'正社員',    active:true, hireDate:'2025-04-01', paidLeaveBalance:8.5  },
+  { id:'A00024', name:'小林 郁磨',   dept:'板場',     role:'',        type:'正社員',    active:true, hireDate:'2025-03-01', paidLeaveBalance:3.5  },
+  { id:'A00032', name:'猪俣 玲',     dept:'板場',     role:'',        type:'正社員',    active:true, hireDate:'2025-04-01', paidLeaveBalance:3.5  },
   { id:'A00025', name:'大森 君子',   dept:'調理朝',   role:'',        type:'正社員',    active:true, hireDate:'2025-07-01', paidLeaveBalance:9    },
-  { id:'A00031', name:'小椋 幸雄',   dept:'部屋清掃', role:'',        type:'正社員',    active:true, hireDate:'2024-02-01', paidLeaveBalance:31   },
+  { id:'A00031', name:'小椋 幸雄',   dept:'部屋清掃', role:'',        type:'正社員',    active:true, hireDate:'2024-02-01', paidLeaveBalance:21   },
   { id:'B00002', name:'石川 光春',   dept:'夜警',     role:'',        type:'パート',    active:true, hireDate:'2005-04-01', paidLeaveBalance:21   },
-  { id:'B00005', name:'鈴木 学',     dept:'夜警',     role:'',        type:'パート',    active:true, hireDate:'2002-05-29', paidLeaveBalance:13   },
+  { id:'B00005', name:'鈴木 学',     dept:'夜警',     role:'',        type:'パート',    active:true, hireDate:'2002-05-29', paidLeaveBalance:16   },
   { id:'B00003', name:'穴沢 つねこ', dept:'ルーム',   role:'',        type:'パート',    active:true, hireDate:'2023-07-16', paidLeaveBalance:4    },
   { id:'B00021', name:'五十嵐 隆',   dept:'調理朝',   role:'',        type:'パート',    active:true, hireDate:'2003-05-01', paidLeaveBalance:21   },
   { id:'B00024', name:'庄司 ユウ子', dept:'調理朝',   role:'',        type:'パート',    active:true, hireDate:'2001-01-26', paidLeaveBalance:28   },
   { id:'B00025', name:'安田 実',     dept:'板場',     role:'',        type:'パート',    active:true, hireDate:'2025-03-01', paidLeaveBalance:0    },
   { id:'B00032', name:'鈴木 国洋',   dept:'部屋清掃', role:'',        type:'パート',    active:true, hireDate:'2021-11-01', paidLeaveBalance:30   },
-  { id:'B00034', name:'鈴木 伊勢子', dept:'共用',     role:'',        type:'パート',    active:true, hireDate:'2006-10-25', paidLeaveBalance:24   },
+  { id:'B00034', name:'鈴木 伊勢子', dept:'共用',     role:'',        type:'パート',    active:true, hireDate:'2006-10-25', paidLeaveBalance:17   },
   { id:'B00035', name:'山口 美喜子', dept:'洗浄',     role:'',        type:'パート',    active:true, hireDate:'2008-07-20', paidLeaveBalance:17   },
   { id:'B00022', name:'吉田 妙子',   dept:'調理朝',   role:'',        type:'アルバイト',active:true, hireDate:'',           paidLeaveBalance:null },
   { id:'B00101', name:'長瀬谷',      dept:'部屋清掃', role:'',        type:'アルバイト',active:true, hireDate:'',           paidLeaveBalance:null },
@@ -5648,6 +5651,26 @@ function autoGrantAll() {
   });
   if (count === 0) showToast('付与対象のスタッフはいません');
   else { showToast(`${count}名に有休を自動付与しました ✅`); renderPaidLeavePage(); }
+}
+function migratePaidLeave() {
+  if (!_fbReady) { showToast('Firebase未接続のため実行できません'); return; }
+  const correctValues = {
+    'A00001': 0, 'A00002': 10, 'A00003': 30, 'A00004': 10,
+    'A00005': 38, 'A00006': 14.5, 'A00007': 26, 'A00008': 34,
+    'A00011': 20, 'A00013': 15, 'A00014': 28, 'A00015': 15,
+    'A00016': 17, 'A00033': 9, 'A00020': 10, 'A00021': 36,
+    'A00024': 3.5, 'A00032': 3.5, 'A00025': 9, 'A00031': 21,
+    'B00002': 21, 'B00005': 16, 'B00003': 4, 'B00021': 21,
+    'B00024': 28, 'B00025': 0, 'B00032': 30, 'B00034': 17,
+    'B00035': 17
+  };
+  Object.entries(correctValues).forEach(([id, bal]) => {
+    const s = STAFF.find(x => x.id === id);
+    if (s) s.paidLeaveBalance = bal;
+  });
+  fbSaveStaffOverrides();
+  renderPaidLeavePage();
+  showToast('✅ 有休残高をデータベースに反映しました');
 }
 function grantPaidLeave(staffId) {
   const s = STAFF.find(x=>x.id===staffId);
