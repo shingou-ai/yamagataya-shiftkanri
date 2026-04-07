@@ -1764,8 +1764,9 @@ loadShiftNotifDismissed(); // 起動時に読み込み
 
 // ===== 管理者設定 =====
 const ADMIN = { id: 'admin01', name: '瓜生 渚', email: 'nununu0731@gmail.com', password: '', staffId: '' };
-// Firebase管理者アカウント（メールのみ。パスワードはログイン時に入力されたものを使用）
+// Firebase管理者アカウント（アプリのログインパスワードとは別）
 const ADMIN_FIREBASE_EMAIL = 'shingo.u@spa-yamagataya.com';
+const ADMIN_FIREBASE_PW    = 'yama2288';
 // サブ管理者（スタッフIDリスト）：スタッフとして登録されているが管理者権限を持つ人
 let SUB_ADMINS = ['A00003'];
 
@@ -2458,8 +2459,8 @@ function tryAutoLogin() {
     _isAdminAccount = true;
     // Firebase認証が匿名のままの場合はメール認証に昇格（書き込み権限取得）
     const _fbUser = _fbReady ? firebase.auth().currentUser : null;
-    if (_fbReady && sess.adminFbPw && (!_fbUser || _fbUser.isAnonymous)) {
-      firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, sess.adminFbPw)
+    if (_fbReady && (!_fbUser || _fbUser.isAnonymous)) {
+      firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, ADMIN_FIREBASE_PW)
         .then(() => { _enterApp(true); })
         .catch(() => { _enterApp(true); });
       return;
@@ -2510,9 +2511,8 @@ function doLogin() {
   errEl.style.display = 'none';
   // 管理者の場合はFirebaseをメール/パスワード認証に昇格（書き込み権限取得）
   if (currentRole === 'admin' && _fbReady) {
-    _adminFbPw = loginPw; // Firebase認証用パスワードを保存
-    _saveSession(); // adminFbPwを含めて保存
-    firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, loginPw)
+    _saveSession();
+    firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, ADMIN_FIREBASE_PW)
       .then(() => { _enterApp(false); })
       .catch(() => { _enterApp(false); });
     return;
