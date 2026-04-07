@@ -1793,26 +1793,32 @@ let _fbAuthReady = false;
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // セッションに管理者パスワードが保存されていればメール認証、なければ匿名認証
-    const _savedSession = (function(){ try { const r = localStorage.getItem('ymShiftSession'); return r ? JSON.parse(r) : null; } catch(e){ return null; } })();
-    const _fbSignIn = (_savedSession && _savedSession.adminFbPw)
-      ? firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _savedSession.adminFbPw)
-      : firebase.auth().signInAnonymously();
-    _fbSignIn
-      .catch(() => firebase.auth().signInAnonymously())
-      .then(() => Promise.all([
+    // Firebase Authの状態変化を監視（Firebase自身が認証状態を永続化している）
+    firebase.auth().onAuthStateChanged(function(user) {
+      if (user) {
+        // 既に認証済み（メール認証 or 匿名）→ そのままデータ読み込み
+        _loadFirebaseData();
+      } else {
+        // 未認証 → 匿名認証
+        firebase.auth().signInAnonymously().catch(() => {
+          _fbAuthReady = true;
+          const lb = document.querySelector('.login-btn');
+          if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+          tryAutoLogin();
+        });
+      }
+    });
+
+    function _loadFirebaseData() {
+      Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
-      ]))
-      .then(([adminSnap, staffSnap]) => {
+      ]).then(([adminSnap, staffSnap]) => {
         const c = adminSnap.val();
         if (c) {
           if (c.id) ADMIN.id = c.id;
           if (c.password) ADMIN.password = c.password;
         }
-        // パスワード未設定の場合はそのまま空（初回ログイン時に設定を促す）
-        // ※Firebaseに保存済みならc.passwordで復元済み
-        // スタッフのパスワードをFirebaseから復元（Object形式）
         const so = staffSnap.val();
         if (so && typeof so === 'object') {
           Object.values(so).forEach(ovr => {
@@ -1822,10 +1828,8 @@ let _fbAuthReady = false;
           });
         }
         _fbAuthReady = true;
-        // ログインボタンを有効化
         const lb = document.querySelector('.login-btn');
         if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
-        // 自動ログイン試行（認証データ読み込み完了後）
         tryAutoLogin();
       }).catch(() => {
         _fbAuthReady = true;
@@ -1833,6 +1837,7 @@ let _fbAuthReady = false;
         if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
         tryAutoLogin();
       });
+    }
   } catch(e) {
     console.warn('Firebase 初期化エラー:', e);
     const lb = document.querySelector('.login-btn');
@@ -2503,14 +2508,9 @@ function doLogin() {
   // 管理者の場合はFirebaseをメール/パスワード認証に昇格（書き込み権限取得）
   if (currentRole === 'admin' && _fbReady) {
     const _loginPw = loginPw;
-    _adminFbPw = _loginPw; // 自動ログイン復元用に保存
-    _saveSession(); // _adminFbPwを含めて再保存
     firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _loginPw)
       .then(() => { _enterApp(false); })
-      .catch(() => {
-        // Firebase認証失敗時は匿名認証に戻してから画面を開く
-        firebase.auth().signInAnonymously().catch(() => {}).then(() => { _enterApp(false); });
-      });
+      .catch(() => { _enterApp(false); });
     return;
   }
   _enterApp(false);
