@@ -1793,9 +1793,13 @@ let _fbAuthReady = false;
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // 既にサインイン済みならそのまま使用、未サインインなら匿名認証
-    const _existingUser = firebase.auth().currentUser;
-    (_existingUser ? Promise.resolve(_existingUser) : firebase.auth().signInAnonymously())
+    // セッションに管理者パスワードが保存されていればメール認証、なければ匿名認証
+    const _savedSession = (function(){ try { const r = localStorage.getItem('ymShiftSession'); return r ? JSON.parse(r) : null; } catch(e){ return null; } })();
+    const _fbSignIn = (_savedSession && _savedSession.adminFbPw)
+      ? firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _savedSession.adminFbPw)
+      : firebase.auth().signInAnonymously();
+    _fbSignIn
+      .catch(() => firebase.auth().signInAnonymously())
       .then(() => Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
