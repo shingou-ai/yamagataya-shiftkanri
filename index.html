@@ -2362,11 +2362,13 @@ function selectRole(r) {
 const _SESSION_KEY = 'ymShiftSession';
 const _SESSION_DAYS = 30;
 let _isAdminAccount = false; // 管理者本人（スタッフ切替中含む）かどうか
+let _adminFbPw = ''; // 管理者ログイン時のFirebaseパスワード（自動ログイン復元用）
 function _saveSession() {
   try {
     localStorage.setItem(_SESSION_KEY, JSON.stringify({
       role: currentRole, staffId: currentStaffId, staffName: currentStaffName,
-      isAdminAccount: _isAdminAccount, savedAt: Date.now()
+      isAdminAccount: _isAdminAccount, savedAt: Date.now(),
+      adminFbPw: _isAdminAccount ? _adminFbPw : ''
     }));
   } catch(e) {}
 }
@@ -2442,6 +2444,13 @@ function tryAutoLogin() {
       currentStaffName = ADMIN.name || sess.staffName;
     }
     _isAdminAccount = true;
+    // Firebase認証を管理者に復元（書き込み権限取得）
+    if (_fbReady && sess.adminFbPw) {
+      firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, sess.adminFbPw)
+        .then(() => { _enterApp(true); })
+        .catch(() => { _enterApp(true); });
+      return;
+    }
     _enterApp(true);
   } else {
     // スタッフセッション検証：在籍・アクティブ確認
@@ -2490,6 +2499,8 @@ function doLogin() {
   // 管理者の場合はFirebaseをメール/パスワード認証に昇格（書き込み権限取得）
   if (currentRole === 'admin' && _fbReady) {
     const _loginPw = loginPw;
+    _adminFbPw = _loginPw; // 自動ログイン復元用に保存
+    _saveSession(); // _adminFbPwを含めて再保存
     firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _loginPw)
       .then(() => { _enterApp(false); })
       .catch(() => {
