@@ -1793,23 +1793,11 @@ let _fbAuthReady = false;
     _fbReady = true;
     console.log('Firebase 接続完了');
     _fbAuthReady = false;
-    // Firebase Authの状態変化を監視（Firebase自身が認証状態を永続化している）
-    firebase.auth().onAuthStateChanged(function(user) {
-      if (user) {
-        // 既に認証済み（メール認証 or 匿名）→ そのままデータ読み込み
-        _loadFirebaseData();
-      } else {
-        // 未認証 → 匿名認証
-        firebase.auth().signInAnonymously().catch(() => {
-          _fbAuthReady = true;
-          const lb = document.querySelector('.login-btn');
-          if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
-          tryAutoLogin();
-        });
-      }
-    });
+    let _fbDataLoaded = false; // 二重呼び出し防止フラグ
 
     function _loadFirebaseData() {
+      if (_fbDataLoaded) return;
+      _fbDataLoaded = true;
       Promise.all([
         _db.ref('/adminConfig').once('value'),
         _db.ref('/staffOverrides').once('value')
@@ -1838,6 +1826,21 @@ let _fbAuthReady = false;
         tryAutoLogin();
       });
     }
+
+    // Firebase Authの状態変化を監視
+    firebase.auth().onAuthStateChanged(function(user) {
+      if (user) {
+        // 認証済み → データ読み込み（二重呼び出し防止）
+        _loadFirebaseData();
+      } else {
+        // 未認証 → 匿名認証してデータ読み込み
+        firebase.auth().signInAnonymously().catch(() => {
+          _fbAuthReady = true;
+          const lb = document.querySelector('.login-btn');
+          if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+        });
+      }
+    });
   } catch(e) {
     console.warn('Firebase 初期化エラー:', e);
     const lb = document.querySelector('.login-btn');
@@ -2453,8 +2456,9 @@ function tryAutoLogin() {
       currentStaffName = ADMIN.name || sess.staffName;
     }
     _isAdminAccount = true;
-    // Firebase認証を管理者に復元（書き込み権限取得）
-    if (_fbReady && sess.adminFbPw) {
+    // Firebase認証が匿名のままの場合はメール認証に昇格（書き込み権限取得）
+    const _fbUser = _fbReady ? firebase.auth().currentUser : null;
+    if (_fbReady && sess.adminFbPw && (!_fbUser || _fbUser.isAnonymous)) {
       firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, sess.adminFbPw)
         .then(() => { _enterApp(true); })
         .catch(() => { _enterApp(true); });
@@ -2504,15 +2508,16 @@ function doLogin() {
     }
   }
   errEl.style.display = 'none';
-  _saveSession(); // セッション保存（30日間有効）
   // 管理者の場合はFirebaseをメール/パスワード認証に昇格（書き込み権限取得）
   if (currentRole === 'admin' && _fbReady) {
-    const _loginPw = loginPw;
-    firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, _loginPw)
+    _adminFbPw = loginPw; // Firebase認証用パスワードを保存
+    _saveSession(); // adminFbPwを含めて保存
+    firebase.auth().signInWithEmailAndPassword(ADMIN_FIREBASE_EMAIL, loginPw)
       .then(() => { _enterApp(false); })
       .catch(() => { _enterApp(false); });
     return;
   }
+  _saveSession(); // セッション保存（30日間有効）
   _enterApp(false);
 }
 // ===== 勤務不可申請 ヘルパー =====
@@ -3238,8 +3243,9 @@ function cancelApprovedUnavailRequest(reqId) {
 function doLogout() {
   _clearSession(); // セッション削除
   _isAdminAccount = false;
-  // 匿名認証に戻す（読み取り専用に降格）
-  if (_fbReady) firebase.auth().signInAnonymously().catch(() => {});
+  _adminFbPw = '';
+  // Firebaseサインアウト→匿名認証に戻す（onAuthStateChangedが処理）
+  if (_fbReady) firebase.auth().signOut().catch(() => {});
   // ロール・フォームをリセット
   selectRole('staff');
   const idEl = document.getElementById('login-id');
