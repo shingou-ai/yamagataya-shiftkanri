@@ -616,7 +616,10 @@
             <div class="page-title">👥 スタッフ管理</div>
             <div class="page-subtitle">在籍スタッフの一覧と管理</div>
           </div>
-          <button class="btn btn-primary" onclick="openAddStaff()">＋ スタッフ追加</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="exportStaffLoginCSV()" style="font-size:12px;" title="ログインID・パスワード一覧をCSVでダウンロード">📥 ログイン情報CSV</button>
+            <button class="btn btn-primary" onclick="openAddStaff()">＋ スタッフ追加</button>
+          </div>
         </div>
         <div class="stats-grid" id="staff-stats"></div>
         <div class="card" style="overflow-x:auto;"><table class="data-table"><thead><tr><th>氏名</th><th>社員ID</th><th>部署</th><th>雇用形態</th><th>状態</th><th>操作</th></tr></thead><tbody id="staff-table-body"></tbody></table></div>
@@ -4683,6 +4686,22 @@ function renderAllShiftTable() {
 }
 
 // ===== STAFF PAGE =====
+function exportStaffLoginCSV() {
+  const rows = [['No.', 'ログインID', '氏名', '部署', '雇用形態', 'パスワード']];
+  STAFF.filter(s => s.active).forEach((s, i) => {
+    rows.push([i + 1, s.id, s.name, s.dept, s.type, s.password || '（未設定）']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'スタッフログイン情報.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 CSVをダウンロードしました');
+}
 function renderStaffPage() {
   const active = STAFF.filter(s=>s.active).length;
   const inactive = STAFF.filter(s=>!s.active).length;
