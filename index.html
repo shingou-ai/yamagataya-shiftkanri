@@ -533,7 +533,7 @@
         <div class="nav-item" onclick="showPage('dept-role-manage')" id="nav-dept-role-manage"><span class="nav-icon">🏷️</span>部署・役職管理</div>
         <div class="nav-item" onclick="openOrderModal()" id="nav-display-order"><span class="nav-icon">↕</span>表示順マスタ</div>
         <div class="nav-item" onclick="showPage('paidleave')" id="nav-paidleave"><span class="nav-icon">📋</span>有給管理</div>
-        <div class="nav-item" onclick="showPage('meeting-manage')" id="nav-meeting-manage"><span class="nav-icon">📢</span>会議管理</div>
+        <div class="nav-item" onclick="showPage('meeting-manage')" id="nav-meeting-manage"><span class="nav-icon">📢</span>会議・イベント管理</div>
       </div>
       <div class="nav-section">
         <div class="nav-section-label">レポート</div>
@@ -776,6 +776,10 @@
           <div style="font-weight:700;font-size:13px;margin-bottom:6px;">📢 今後の会議</div>
           <div id="meeting-notif-body" style="font-size:13px;line-height:1.9;"></div>
         </div>
+        <div id="event-notif" style="display:none;background:#FFF3E0;border-left:4px solid #F59E0B;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px;">
+          <div style="font-weight:700;font-size:13px;margin-bottom:6px;">🎯 今後のイベント</div>
+          <div id="event-notif-body" style="font-size:13px;line-height:1.9;"></div>
+        </div>
         <div class="page-header">
           <div><div class="page-title">📅 マイシフト</div><div class="page-subtitle" id="my-shift-subtitle">田村 花子さんのシフト</div></div>
           <div class="month-nav">
@@ -913,19 +917,46 @@
         </div>
       </div>
 
-      <!-- PAGE: 会議管理 -->
+      <!-- PAGE: 会議・イベント管理 -->
       <div class="page" id="page-meeting-manage">
         <div class="page-header">
-          <div><div class="page-title">📢 会議管理</div><div class="page-subtitle">経費会議・営業会議のスケジュール設定と出席者管理</div></div>
-          <button class="btn btn-primary" onclick="openAddMeetingModal()">＋ 会議を追加</button>
+          <div><div class="page-title">📢 会議・イベント管理</div><div class="page-subtitle" id="meeting-page-subtitle">会議とイベントのスケジュール・出席者管理</div></div>
+          <div style="display:flex;gap:8px;" id="meeting-page-actions">
+            <button class="btn btn-primary" onclick="openAddMeetingModal()" id="btn-add-meeting">＋ 会議を追加</button>
+          </div>
         </div>
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-title">🏢 会議種別・出席者設定</div>
-          <div id="meeting-types-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;">読み込み中...</div></div>
+        <!-- タブ切替 -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;">
+          <button id="tab-meeting-btn" onclick="switchMeetingTab('meeting')"
+            style="padding:8px 24px;font-size:14px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid var(--primary);color:var(--primary);margin-bottom:-2px;">
+            📢 会議管理
+          </button>
+          <button id="tab-event-btn" onclick="switchMeetingTab('event')"
+            style="padding:8px 24px;font-size:14px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:var(--text-muted);margin-bottom:-2px;">
+            🎯 イベント管理
+          </button>
         </div>
-        <div class="card">
-          <div class="card-title">📅 会議スケジュール</div>
-          <div id="meeting-schedule-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;text-align:center;">会議スケジュールがありません</div></div>
+        <!-- 会議管理タブ -->
+        <div id="tab-meeting-content">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">🏢 会議種別・出席者設定</div>
+            <div id="meeting-types-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;">読み込み中...</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">📅 会議スケジュール</div>
+            <div id="meeting-schedule-area"><div style="color:var(--text-muted);font-size:13px;padding:8px;text-align:center;">会議スケジュールがありません</div></div>
+          </div>
+        </div>
+        <!-- イベント管理タブ -->
+        <div id="tab-event-content" style="display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:13px;color:var(--text-muted);">毎年繰り返すイベントを月ごとに登録。日付が確定したらスタッフに通知できます。</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="openResetAnnualEventsModal()" title="今年分の日付・通知状態をリセット">🔄 年度リセット</button>
+              <button class="btn btn-primary" onclick="openAddEventModal()">＋ イベント追加</button>
+            </div>
+          </div>
+          <div id="annual-events-accordion"></div>
         </div>
       </div>
 
@@ -1339,6 +1370,83 @@
   </div>
 </div>
 
+<!-- MODAL: イベント追加・編集 -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title" id="event-modal-title">🎯 イベントを追加</div>
+    <input type="hidden" id="event-modal-id">
+    <div class="form-group">
+      <label>イベント名 <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" id="event-modal-name" placeholder="例：館内ワックスがけ">
+    </div>
+    <div class="form-group">
+      <label>実施月 <span style="color:var(--danger)">*</span></label>
+      <select class="form-input" id="event-modal-month">
+        <option value="">月を選択</option>
+        <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+        <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+        <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+        <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>カテゴリ</label>
+      <select class="form-input" id="event-modal-category">
+        <option value="館内清掃">館内清掃</option>
+        <option value="設備点検">設備点検</option>
+        <option value="季節イベント">季節イベント</option>
+        <option value="棚卸し">棚卸し</option>
+        <option value="研修">研修</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>対象スタッフ</label>
+      <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;" id="event-modal-staff-list"></div>
+    </div>
+    <div class="form-group">
+      <label>備考</label>
+      <textarea class="form-input" id="event-modal-note" rows="2" style="resize:vertical;" placeholder="例：休館日に実施。予約状況で日程決定"></textarea>
+    </div>
+    <div id="event-modal-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('event-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEvent()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: イベント日付確定 -->
+<div class="modal-overlay" id="event-date-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-title" id="event-date-modal-title">📅 日付を確定する</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;" id="event-date-modal-sub"></div>
+    <input type="hidden" id="event-date-modal-id">
+    <div class="form-group">
+      <label>実施日 <span style="color:var(--danger)">*</span></label>
+      <input class="form-input" type="date" id="event-date-input">
+    </div>
+    <div id="event-date-modal-error" style="color:var(--danger);font-size:13px;display:none;margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('event-date-modal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEventDate()">✅ 確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 年度リセット確認 -->
+<div class="modal-overlay" id="event-reset-modal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">🔄 年度リセット</div>
+    <div style="font-size:13px;margin-bottom:16px;">今年度分の<strong>実施日・通知状態</strong>をすべてクリアします。<br>イベント定義（名前・月・スタッフ設定）は残ります。</div>
+    <div style="background:#FEF3C7;border-radius:8px;padding:12px;font-size:12px;color:#92400E;margin-bottom:16px;">⚠️ この操作は元に戻せません。新年度の準備が整ったときに実行してください。</div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('event-reset-modal')">キャンセル</button>
+      <button class="btn btn-danger" onclick="executeResetAnnualEvents()">🔄 リセット実行</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: 初期パスワード設定 -->
 <div class="modal-overlay" id="init-pw-modal">
   <div class="modal" style="max-width:400px;">
@@ -1746,6 +1854,7 @@ let pendingFlexData    = {};  // 未保存フレックス時間: key → { start
 let pendingFlexOriginal= {};  // 各キーの変更前のフレックス時間（discard用）
 let meetingTypes       = {};  // typeId → { id, name, attendeeIds:[] }
 let meetings           = {};  // meetingId → { id, type, year, month, day, time, location, note, createdAt }
+let annualEvents       = {};  // evtId → { id, name, month, category, targetStaffIds[], note, scheduledDate, announcedAt }
 let _editingMeetingTypeId = null;
 let unavailRequests    = {};  // reqId → requestObj
 let unavailNotifLog    = [];  // スタッフへの結果通知ログ
@@ -1971,6 +2080,7 @@ async function fbLoad() {
     if (d.unavailRequests)  unavailRequests  = d.unavailRequests;
     if (d.unavailNotifLog)  unavailNotifLog  = Array.isArray(d.unavailNotifLog) ? d.unavailNotifLog : Object.values(d.unavailNotifLog);
     if (d.unavailNotifDismissed) Object.assign(unavailNotifDismissed, d.unavailNotifDismissed);
+    if (d.annualEvents)     annualEvents     = d.annualEvents;
     // 通知既読状態をFirebaseから復元（localStorageより新しければ上書き）
     if (d.shiftNotifDismissed) {
       Object.entries(d.shiftNotifDismissed).forEach(([sid, ts]) => {
@@ -2288,6 +2398,14 @@ function fbStartListeners() {
     const pid = document.querySelector('.page.active')?.id;
     if (pid === 'page-meeting-manage') renderMeetingManagePage();
     if (pid === 'page-my-shift') renderMeetingNotif();
+  });
+
+  // 年間イベントのリアルタイム同期
+  _db.ref('/annualEvents').on('value', snap => {
+    annualEvents = snap.val() || {};
+    const pid = document.querySelector('.page.active')?.id;
+    if (pid === 'page-meeting-manage') renderAnnualEventsAccordion();
+    if (pid === 'page-my-shift') renderEventNotif();
   });
 
   // 勤務希望申請のリアルタイム同期
@@ -3391,7 +3509,7 @@ function renderPageContent(id) {
   else if (id==='account-settings') renderAccountSettings();
   else if (id==='shift-request')   { renderRequests(); renderUnavailManage(); }
   else if (id==='unavail-request') renderUnavailRequest();
-  else if (id==='meeting-manage')  renderMeetingManagePage();
+  else if (id==='meeting-manage')  { renderMeetingManagePage(); if (_meetingTab === 'event') renderAnnualEventsAccordion(); }
 }
 
 // ===== MONTH =====
@@ -6416,8 +6534,9 @@ function renderMyShift() {
   }
   // 勤務不可申請結果通知バナー
   _renderUnavailNotifBanner();
-  // 会議通知バナー
+  // 会議・イベント通知バナー
   renderMeetingNotif();
+  renderEventNotif();
   const grid = document.getElementById('my-calendar-grid');
   const _monthKey = `${year}-${month}`;
   const _isPublished = !!publishedMonths[_monthKey];
@@ -6730,6 +6849,299 @@ function renderMeetingNotif() {
                   : diff === 1 ? '<span style="color:var(--warning);font-weight:700;">明日</span>'
                   : `<span style="color:var(--text-muted);">${diff}日後</span>`;
     return `<div style="padding:2px 0;">📌 <strong>${m.year}年${m.month}月${m.day}日（${wd}）</strong>${m.time ? '&nbsp;' + m.time + '〜' : ''}&nbsp;<strong style="color:#7B1FA2;">${m.type}</strong>${m.location ? `（${m.location}）` : ''}&nbsp;${diffStr}</div>`;
+  }).join('');
+  el.style.display = '';
+}
+
+// ===== 会議・イベント管理 タブ切替 =====
+let _meetingTab = 'meeting'; // 'meeting' | 'event'
+function switchMeetingTab(tab) {
+  _meetingTab = tab;
+  const meetingBtn = document.getElementById('tab-meeting-btn');
+  const eventBtn   = document.getElementById('tab-event-btn');
+  const meetingContent = document.getElementById('tab-meeting-content');
+  const eventContent   = document.getElementById('tab-event-content');
+  const addMeetingBtn  = document.getElementById('btn-add-meeting');
+  if (tab === 'meeting') {
+    meetingBtn.style.borderBottomColor = 'var(--primary)';
+    meetingBtn.style.color = 'var(--primary)';
+    eventBtn.style.borderBottomColor = 'transparent';
+    eventBtn.style.color = 'var(--text-muted)';
+    meetingContent.style.display = '';
+    eventContent.style.display = 'none';
+    addMeetingBtn.style.display = '';
+  } else {
+    eventBtn.style.borderBottomColor = 'var(--primary)';
+    eventBtn.style.color = 'var(--primary)';
+    meetingBtn.style.borderBottomColor = 'transparent';
+    meetingBtn.style.color = 'var(--text-muted)';
+    meetingContent.style.display = 'none';
+    eventContent.style.display = '';
+    addMeetingBtn.style.display = 'none';
+    renderAnnualEventsAccordion();
+  }
+}
+
+// ===== 年間イベント管理 =====
+const EVENT_CATEGORIES = { '館内清掃':'🧹','設備点検':'🔧','季節イベント':'❄️','棚卸し':'📦','研修':'📚','その他':'📌' };
+const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+let _accordionOpen = {}; // 月ごとの開閉状態
+
+function renderAnnualEventsAccordion() {
+  const container = document.getElementById('annual-events-accordion');
+  if (!container) return;
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  // 月ごとにイベントをグループ化
+  const byMonth = {};
+  for (let m = 1; m <= 12; m++) byMonth[m] = [];
+  Object.values(annualEvents).forEach(ev => {
+    if (ev && ev.month >= 1 && ev.month <= 12) byMonth[ev.month].push(ev);
+  });
+  const WDAYS = ['日','月','火','水','木','金','土'];
+  container.innerHTML = Array.from({length:12}, (_,i) => i+1).map(m => {
+    const evList = byMonth[m].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    const count = evList.length;
+    const isOpen = _accordionOpen[m] !== undefined ? _accordionOpen[m] : (m === currentMonth);
+    const hasScheduled = evList.some(e => e.scheduledDate);
+    const allAnnounced = count > 0 && evList.every(e => e.announcedAt);
+    const monthBadge = m === currentMonth
+      ? `<span style="font-size:10px;background:var(--primary);color:white;border-radius:10px;padding:1px 7px;margin-left:6px;">今月</span>` : '';
+    const statusBadge = allAnnounced && count > 0
+      ? `<span style="font-size:11px;color:#059669;margin-left:6px;">✅通知済</span>`
+      : hasScheduled ? `<span style="font-size:11px;color:var(--warning);margin-left:6px;">📅日程確定済</span>` : '';
+    const evRows = count === 0
+      ? `<div style="color:var(--text-muted);font-size:13px;padding:12px 8px;text-align:center;">登録イベントなし</div>`
+      : evList.map(ev => {
+          const icon = EVENT_CATEGORIES[ev.category] || '📌';
+          const targets = (ev.targetStaffIds||[]).map(id => STAFF.find(s=>s.id===id)?.name).filter(Boolean);
+          const targetStr = targets.length ? targets.join('・') : '<span style="color:var(--text-muted)">全員</span>';
+          let dateStr, actionBtn;
+          if (ev.scheduledDate) {
+            const d = new Date(ev.scheduledDate + 'T00:00:00');
+            const wd = WDAYS[d.getDay()];
+            dateStr = `<span style="font-weight:700;color:var(--primary);">${d.getMonth()+1}/${d.getDate()}（${wd}）</span>`;
+            if (ev.announcedAt) {
+              const aDate = new Date(ev.announcedAt);
+              actionBtn = `<span style="font-size:11px;color:#059669;white-space:nowrap;">✅ 通知済（${aDate.getMonth()+1}/${aDate.getDate()}）</span>
+                <button class="btn btn-ghost btn-sm" onclick="announceEvent('${ev.id}')" style="font-size:11px;">🔔 再通知</button>`;
+            } else {
+              actionBtn = `<button class="btn btn-primary btn-sm" onclick="announceEvent('${ev.id}')" style="font-size:11px;white-space:nowrap;">📢 スタッフに通知</button>`;
+            }
+          } else {
+            dateStr = `<span style="color:var(--text-muted);font-size:12px;">日程未定</span>`;
+            actionBtn = `<button class="btn btn-outline btn-sm" onclick="openEventDateModal('${ev.id}')" style="font-size:11px;white-space:nowrap;">📅 日付を確定</button>`;
+          }
+          return `<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 8px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+            <div style="font-size:20px;flex-shrink:0;margin-top:2px;">${icon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:14px;">${ev.name}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+                ${ev.category || ''}&nbsp;／&nbsp;対象：${targetStr}
+              </div>
+              ${ev.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📝 ${ev.note}</div>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+              ${dateStr}
+              <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+                ${actionBtn}
+                ${ev.scheduledDate && !ev.announcedAt ? `<button class="btn btn-ghost btn-sm" onclick="openEventDateModal('${ev.id}')" style="font-size:11px;">✏️ 日付変更</button>` : ''}
+                <button class="btn btn-ghost btn-sm" onclick="openEditEventModal('${ev.id}')" style="font-size:11px;">✏️ 編集</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}')" style="font-size:11px;">削除</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden;">
+      <div onclick="toggleAccordion(${m})" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:${isOpen?'var(--bg2)':'white'};user-select:none;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-weight:700;font-size:15px;">${MONTH_NAMES[m-1]}</span>${monthBadge}${statusBadge}
+          <span style="font-size:12px;color:var(--text-muted);margin-left:4px;">${count}件</span>
+        </div>
+        <span style="color:var(--text-muted);font-size:18px;transition:transform .2s;${isOpen?'transform:rotate(180deg)':''}">▾</span>
+      </div>
+      <div id="accordion-${m}" style="display:${isOpen?'block':'none'};">${evRows}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAccordion(m) {
+  _accordionOpen[m] = !(_accordionOpen[m] !== undefined ? _accordionOpen[m] : (m === new Date().getMonth()+1));
+  renderAnnualEventsAccordion();
+}
+
+// イベント追加モーダルを開く
+function openAddEventModal() {
+  document.getElementById('event-modal-title').textContent = '🎯 イベントを追加';
+  document.getElementById('event-modal-id').value = '';
+  document.getElementById('event-modal-name').value = '';
+  document.getElementById('event-modal-month').value = '';
+  document.getElementById('event-modal-category').value = '館内清掃';
+  document.getElementById('event-modal-note').value = '';
+  document.getElementById('event-modal-error').style.display = 'none';
+  _renderEventStaffList([]);
+  openModal('event-modal');
+}
+
+// イベント編集モーダルを開く
+function openEditEventModal(id) {
+  const ev = annualEvents[id];
+  if (!ev) return;
+  document.getElementById('event-modal-title').textContent = '✏️ イベントを編集';
+  document.getElementById('event-modal-id').value = id;
+  document.getElementById('event-modal-name').value = ev.name || '';
+  document.getElementById('event-modal-month').value = ev.month || '';
+  document.getElementById('event-modal-category').value = ev.category || 'その他';
+  document.getElementById('event-modal-note').value = ev.note || '';
+  document.getElementById('event-modal-error').style.display = 'none';
+  _renderEventStaffList(ev.targetStaffIds || []);
+  openModal('event-modal');
+}
+
+function _renderEventStaffList(selectedIds) {
+  const activeStaff = getOrderedStaff();
+  document.getElementById('event-modal-staff-list').innerHTML = activeStaff.map(s => {
+    const checked = selectedIds.includes(s.id);
+    const deptKey = s.dept.replace(/[（）]/g,'');
+    return `<label style="display:flex;align-items:center;gap:10px;padding:6px 8px;cursor:pointer;border-radius:6px;"
+        onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" data-sid="${s.id}" ${checked?'checked':''} style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary);">
+      <span style="font-weight:600;font-size:13px;">${s.name}</span>
+      <span class="dept-badge dept-${deptKey}" style="font-size:10px;">${s.dept}</span>
+    </label>`;
+  }).join('');
+}
+
+// イベントを保存（追加・編集）
+function saveEvent() {
+  const id    = document.getElementById('event-modal-id').value;
+  const name  = document.getElementById('event-modal-name').value.trim();
+  const month = parseInt(document.getElementById('event-modal-month').value);
+  const category = document.getElementById('event-modal-category').value;
+  const note  = document.getElementById('event-modal-note').value.trim();
+  const errEl = document.getElementById('event-modal-error');
+  if (!name)  { errEl.textContent = 'イベント名を入力してください'; errEl.style.display = ''; return; }
+  if (!month) { errEl.textContent = '実施月を選択してください';     errEl.style.display = ''; return; }
+  errEl.style.display = 'none';
+  const checks = document.querySelectorAll('#event-modal-staff-list input[type=checkbox]');
+  const targetStaffIds = Array.from(checks).filter(c=>c.checked).map(c=>c.dataset.sid);
+  if (id) {
+    // 編集：名前・月・カテゴリ・スタッフ・備考のみ更新（日程・通知状態は保持）
+    const existing = annualEvents[id] || {};
+    const updated = { ...existing, name, month, category, targetStaffIds, note };
+    annualEvents[id] = updated;
+    fbSave(`/annualEvents/${id}`, updated);
+    showToast(`✅ 「${name}」を更新しました`);
+  } else {
+    const newId = `evt_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const ev = { id: newId, name, month, category, targetStaffIds, note, scheduledDate: null, announcedAt: null };
+    annualEvents[newId] = ev;
+    fbSave(`/annualEvents/${newId}`, ev);
+    showToast(`✅ 「${name}」を追加しました（${month}月）`);
+  }
+  closeModal('event-modal');
+}
+
+// 日付確定モーダルを開く
+function openEventDateModal(id) {
+  const ev = annualEvents[id];
+  if (!ev) return;
+  document.getElementById('event-date-modal-title').textContent = `📅 日付を確定：${ev.name}`;
+  document.getElementById('event-date-modal-sub').textContent = `${ev.month}月のイベントです。今年の実施日を入力してください。`;
+  document.getElementById('event-date-modal-id').value = id;
+  document.getElementById('event-date-input').value = ev.scheduledDate || '';
+  document.getElementById('event-date-modal-error').style.display = 'none';
+  openModal('event-date-modal');
+}
+
+// 日付確定を保存
+function saveEventDate() {
+  const id  = document.getElementById('event-date-modal-id').value;
+  const val = document.getElementById('event-date-input').value;
+  const errEl = document.getElementById('event-date-modal-error');
+  if (!val) { errEl.textContent = '日付を入力してください'; errEl.style.display = ''; return; }
+  const ev = annualEvents[id];
+  if (!ev) return;
+  ev.scheduledDate = val;
+  // 日付変更時は通知状態をクリア
+  ev.announcedAt = null;
+  fbSave(`/annualEvents/${id}`, ev);
+  closeModal('event-date-modal');
+  showToast(`📅 「${ev.name}」の日程を確定しました（${val}）`);
+}
+
+// スタッフに通知
+function announceEvent(id) {
+  const ev = annualEvents[id];
+  if (!ev || !ev.scheduledDate) { showToast('先に日付を確定してください'); return; }
+  ev.announcedAt = Date.now();
+  fbSave(`/annualEvents/${id}`, ev);
+  showToast(`📢 「${ev.name}」をスタッフに通知しました`);
+}
+
+// イベント削除
+function deleteEvent(id) {
+  const ev = annualEvents[id];
+  if (!ev) return;
+  showConfirm(
+    `「${ev.name}」を削除しますか？`,
+    'イベント定義がすべて削除されます。元に戻せません。',
+    () => {
+      delete annualEvents[id];
+      _db.ref(`/annualEvents/${id}`).remove();
+      renderAnnualEventsAccordion();
+      showToast('削除しました');
+    },
+    '削除する'
+  );
+}
+
+// 年度リセットモーダルを開く
+function openResetAnnualEventsModal() {
+  openModal('event-reset-modal');
+}
+
+// 年度リセット実行
+function executeResetAnnualEvents() {
+  Object.values(annualEvents).forEach(ev => {
+    if (ev.scheduledDate || ev.announcedAt) {
+      ev.scheduledDate = null;
+      ev.announcedAt   = null;
+      fbSave(`/annualEvents/${ev.id}`, ev);
+    }
+  });
+  closeModal('event-reset-modal');
+  showToast('🔄 年度リセット完了。全イベントの日程・通知状態をクリアしました');
+  renderAnnualEventsAccordion();
+}
+
+// スタッフ向けイベント通知バナーを描画
+function renderEventNotif() {
+  const el = document.getElementById('event-notif');
+  const bodyEl = document.getElementById('event-notif-body');
+  if (!el || !bodyEl || !currentStaffId) return;
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const WDAYS = ['日','月','火','水','木','金','土'];
+  // 通知済みで今後90日以内、自分が対象のイベントを表示
+  const upcoming = Object.values(annualEvents).filter(ev => {
+    if (!ev.scheduledDate || !ev.announcedAt) return false;
+    const targets = ev.targetStaffIds || [];
+    if (targets.length > 0 && !targets.includes(currentStaffId)) return false;
+    const d = new Date(ev.scheduledDate + 'T00:00:00');
+    const diff = (d - today0) / 86400000;
+    return diff >= 0 && diff <= 90;
+  }).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+  if (upcoming.length === 0) { el.style.display = 'none'; return; }
+  bodyEl.innerHTML = upcoming.map(ev => {
+    const d = new Date(ev.scheduledDate + 'T00:00:00');
+    const wd = WDAYS[d.getDay()];
+    const diff = Math.round((d - today0) / 86400000);
+    const diffStr = diff === 0 ? '<span style="color:var(--danger);font-weight:700;">今日</span>'
+                  : diff === 1 ? '<span style="color:var(--warning);font-weight:700;">明日</span>'
+                  : `<span style="color:var(--text-muted);">${diff}日後</span>`;
+    const icon = EVENT_CATEGORIES[ev.category] || '📌';
+    return `<div style="padding:2px 0;">${icon} <strong>${d.getMonth()+1}月${d.getDate()}日（${wd}）</strong>&nbsp;<strong style="color:#B45309;">${ev.name}</strong>&nbsp;${diffStr}</div>`;
   }).join('');
   el.style.display = '';
 }
