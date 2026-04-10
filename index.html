@@ -965,7 +965,7 @@
         <div class="page-header">
           <div><div class="page-title">✏️ 休み希望申請</div><div class="page-subtitle" id="req-form-subtitle">休みたい日を選んで提出してください（提出先：瓜生 渚）</div></div>
         </div>
-        <div class="card">
+        <div class="card" style="margin-bottom:16px;">
           <div class="card-title" id="req-form-card-title">📅 希望入力</div>
           <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">タップして休みたい日を選んでください。</p>
           <div id="req-form-grid"></div>
@@ -973,6 +973,11 @@
             <button class="btn btn-ghost" onclick="saveReqDraft()">💾 一時保存</button>
             <button class="btn btn-primary" onclick="submitReqForm()">📨 提出する</button>
           </div>
+        </div>
+        <!-- 申請履歴カード -->
+        <div class="card">
+          <div class="card-title">📋 申請履歴</div>
+          <div id="req-history-list"><div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">申請履歴はありません</div></div>
         </div>
       </div>
 
@@ -2326,7 +2331,9 @@ function fbStartListeners() {
       }
     }
     _updateAdminRequestBadge();
-    if (document.querySelector('.page.active')?.id === 'page-shift-request') renderRequests();
+    const _reqPid = document.querySelector('.page.active')?.id;
+    if (_reqPid === 'page-shift-request') renderRequests();
+    if (_reqPid === 'page-shift-req-form') renderReqHistory();
   });
   _db.ref('/shiftChangeLog').on('value', snap => {
     const d = snap.val(); if (!d) return;
@@ -7442,6 +7449,45 @@ function getReqMonths() {
   }
   return months;
 }
+function renderReqHistory() {
+  const listEl = document.getElementById('req-history-list');
+  if (!listEl) return;
+  // 自分の申請だけ抽出（新しい順）
+  const mine = REQUESTS.filter(r => r.staffId === currentStaffId)
+    .slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  if (mine.length === 0) {
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">申請履歴はありません</div>';
+    return;
+  }
+  const statusConfig = {
+    pending:  { label: '確認待ち', bg: '#FEF3C7', color: '#92400E', border: '#F59E0B', icon: '⏳' },
+    approved: { label: '承認済',   bg: '#D1FAE5', color: '#065F46', border: '#10B981', icon: '✅' },
+    rejected: { label: '却下',     bg: '#FEE2E2', color: '#991B1B', border: '#EF4444', icon: '❌' },
+    cancelled:{ label: '取消済',   bg: '#F3F4F6', color: '#6B7280', border: '#9CA3AF', icon: '↩' },
+  };
+  listEl.innerHTML = mine.map(r => {
+    const st = statusConfig[r.status] || statusConfig.pending;
+    const submittedDate = r.at ? new Date(r.at) : null;
+    const submittedStr = submittedDate
+      ? `${submittedDate.getFullYear()}/${submittedDate.getMonth()+1}/${submittedDate.getDate()} 提出`
+      : '';
+    // 希望日の表示
+    const days = Array.isArray(r.days) && r.days.length > 0
+      ? r.days.map(d => {
+          const w = dow(r.year, r.month, d);
+          return `<span style="display:inline-block;background:var(--bg2);border-radius:4px;padding:1px 6px;font-size:11px;margin:2px 2px;">${d}日（${WEEKDAYS[w]}）</span>`;
+        }).join('')
+      : `<span style="color:var(--text-muted);font-size:12px;">希望なし</span>`;
+    return `<div style="border:1px solid ${st.border};border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:10px;background:${st.bg}20;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+        <span style="font-weight:700;font-size:14px;">📅 ${r.year}年${r.month}月</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;background:${st.bg};color:${st.color};border:1px solid ${st.border};border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700;">${st.icon} ${st.label}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">${submittedStr}</div>
+      <div style="line-height:2;">${days}</div>
+    </div>`;
+  }).join('');
+}
 function renderReqForm() {
   const grid = document.getElementById('req-form-grid');
   if (!grid) return;
@@ -7477,6 +7523,7 @@ function renderReqForm() {
   }
   html += '</div>';
   grid.innerHTML = html;
+  renderReqHistory();
 }
 function setReqFormMonth(y, m) {
   reqFormSel = { year: y, month: m };
