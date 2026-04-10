@@ -3851,6 +3851,7 @@ let paintIsTouch = false;
 
 document.addEventListener('pointerdown', e => {
   if (!isPainting) return;
+  if (e.button !== 0) return; // 右クリック・中クリックは無視（contextmenuイベントを妨害しないため）
   const cell = e.target.closest('[data-key]');
   if (!cell) return;
   paintIsTouch = (e.pointerType === 'touch');
