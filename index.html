@@ -7452,11 +7452,13 @@ function getReqMonths() {
 function renderReqHistory() {
   const listEl = document.getElementById('req-history-list');
   if (!listEl) return;
-  // 自分の申請だけ抽出（新しい順）
-  const mine = REQUESTS.filter(r => r.staffId === currentStaffId)
-    .slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  // 現在選択中の月に絞って自分の申請を抽出（新しい順）
+  const { year, month } = reqFormSel || getReqMonths()[0];
+  const mine = REQUESTS.filter(r =>
+    r.staffId === currentStaffId && r.year === year && r.month === month
+  ).slice().sort((a, b) => (b.at || 0) - (a.at || 0));
   if (mine.length === 0) {
-    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">申請履歴はありません</div>';
+    listEl.innerHTML = `<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:16px;">${year}年${month}月の申請履歴はありません</div>`;
     return;
   }
   const statusConfig = {
