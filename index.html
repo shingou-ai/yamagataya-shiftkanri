@@ -4971,18 +4971,19 @@ function saveStaff() {
   const pwInput = document.getElementById('staff-pw-input').value;
   const staffId = document.getElementById('staff-id-input').value.trim();
   const hireInputVal = document.getElementById('staff-hire-input').value.trim();
+  const staffType = document.getElementById('staff-type-input').value; // typeを先に取得
   const today = new Date();
   const data = {
     name: document.getElementById('staff-name-input').value.trim(),
     id:   staffId,
     dept: document.getElementById('staff-dept-input').value,
     role: document.getElementById('staff-role-input').value,
-    type: document.getElementById('staff-type-input').value,
+    type: staffType,
     active: true,
     password: pwInput,
     hireDate: hireInputVal || '',
-    scheduledWeeklyDays:  data.type === '正社員' ? 5 : (parseInt(document.getElementById('staff-weekly-days-input')?.value) || 4),
-    scheduledWeeklyHours: data.type === '正社員' ? 40 : (parseFloat(document.getElementById('staff-weekly-hours-input')?.value) || 20),
+    scheduledWeeklyDays:  staffType === '正社員' ? 5 : (parseInt(document.getElementById('staff-weekly-days-input')?.value) || 4),
+    scheduledWeeklyHours: staffType === '正社員' ? 40 : (parseFloat(document.getElementById('staff-weekly-hours-input')?.value) || 20),
   };
   if (!data.name || !data.id) { showToast('氏名とIDを入力してください'); return; }
   if (editId === '') {
