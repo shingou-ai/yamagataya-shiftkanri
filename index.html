@@ -2871,21 +2871,18 @@ function renderUnavailRequest() {
   if (patSel) {
     const curPatVal = patSel.value;
     const DEPT_ORDER = ['フロント','夜警','ルーム','部屋清掃','板場','調理朝','共用','洗浄'];
-    const restPats = PATTERNS.filter(p => p.allday || p.halfday);
     const workByDept = {};
+    // 休日系（allday/halfday）は休み申請から行うため除外し、勤務パターンのみ表示
     PATTERNS.filter(p => !p.allday && !p.halfday).forEach(p => {
       const dept = p.dept || 'その他';
       if (!workByDept[dept]) workByDept[dept] = [];
       workByDept[dept].push(p);
     });
     const makeOpt = p => {
-      const info = p.allday ? '（終日休）' : p.halfday ? '（半日）' : (p.start && p.end ? `（${p.start}〜${p.end}）` : '');
+      const info = p.start && p.end ? `（${p.start}〜${p.end}）` : '';
       return `<option value="${p.id}">${p.name}${info}</option>`;
     };
     let html = '<option value="">--- パターンを選択してください ---</option>';
-    if (restPats.length) {
-      html += `<optgroup label="── 休日系（公休・有休等）──">` + restPats.map(makeOpt).join('') + '</optgroup>';
-    }
     const orderedDepts = [
       ...DEPT_ORDER.filter(d => workByDept[d]),
       ...Object.keys(workByDept).filter(d => !DEPT_ORDER.includes(d))
