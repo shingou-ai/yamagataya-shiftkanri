@@ -2798,6 +2798,7 @@ function setHalfDay(type) {
     halfDayFlags[key] = type;
     const label = type === 'AM_kokyu' ? 'AM（公休）' : type === 'PM_kokyu' ? 'PM（公休）'
                 : type === 'AM_yukyu' ? 'AM（有休）' : 'PM（有休）';
+    if (_fbReady) _db.ref('/halfDayFlags/' + key).set(type).catch(e => console.warn('halfDayFlags set:', e));
     showToast(`🌗 半休${label}を設定しました`);
   } else {
     // 解除：有休だった場合 残 +0.5
@@ -2806,9 +2807,9 @@ function setHalfDay(type) {
       fbSaveStaffOverrides();
     }
     delete halfDayFlags[key];
+    if (_fbReady) _db.ref('/halfDayFlags/' + key).remove().catch(e => console.warn('halfDayFlags remove:', e));
     showToast('🌗 半休を解除しました');
   }
-  fbSave('/halfDayFlags', halfDayFlags);
   renderMainShiftTable();
 }
 
@@ -4117,6 +4118,12 @@ function applyPaint(key) {
 
   // ローカルに反映（Firebase保存はしない）
   if (!newShiftId) delete shiftData[key]; else shiftData[key] = newShiftId;
+
+  // 半休フラグを削除（シフトを上書きしたら半休フラグも即時クリア）
+  if (halfDayFlags[key]) {
+    delete halfDayFlags[key];
+    if (_fbReady) _db.ref('/halfDayFlags/' + key).remove().catch(e => console.warn('halfDayFlags remove:', e));
+  }
 
   // 固定フラグを解除（discard時に復元できるよう元データを保存）
   if (shiftFixed[key]) {
