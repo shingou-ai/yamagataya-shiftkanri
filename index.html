@@ -4571,12 +4571,34 @@ function updateStaffRowTotals(staffId) {
 }
 
 function setShukucho(key, staffId) {
+  const parts = key.split('-'); // ["year","month","day"]
+  const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
+  const monthKey = `${y}-${m}`;
+  const prevStaffId = shukuchoData[key] || null; // 変更前の担当者
+
   if (staffId) shukuchoData[key] = staffId;
   else delete shukuchoData[key];
   fbSave('/shukuchoData', shukuchoData);
+
+  // 公開済み月の宿直変更: 元担当者・新担当者それぞれに通知ログを記録
+  if (publishedMonths[monthKey]) {
+    const now = Date.now();
+    let logged = false;
+    // 元担当者への「外れた」通知
+    if (prevStaffId && prevStaffId !== staffId) {
+      shiftChangeLog.push({ type: 'shukucho_remove', staffId: prevStaffId, year: y, month: m, day: d, at: now });
+      logged = true;
+    }
+    // 新担当者への「追加された」通知
+    if (staffId && staffId !== prevStaffId) {
+      shiftChangeLog.push({ type: 'shukucho_add', staffId: staffId, year: y, month: m, day: d, at: now });
+      logged = true;
+    }
+    if (logged) fbSave('/shiftChangeLog', shiftChangeLog);
+  }
+
   // 宿直×休み警告チェック
   if (staffId) {
-    const parts = key.split('-'); // "year-month-day"
     const shiftKey = `${parts[0]}-${parts[1]}-${parts[2]}-${staffId}`;
     const shiftId = shiftData[shiftKey] || '';
     if (shiftId && isRestPat(shiftId)) {
@@ -6515,30 +6537,51 @@ function renderMyShift() {
       reqNotifEl.style.display = 'none';
     }
   }
-  // シフト変更通知バナー
+  // シフト変更・宿直変更通知バナー
   const notifEl = document.getElementById('shift-change-notif');
   const notifBody = document.getElementById('shift-change-notif-body');
   if (notifEl && notifBody) {
     const dismissedAt = shiftNotifDismissed[staffId] || null;
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000; // 30日より古いログは通知しない
-    const newChanges = shiftChangeLog.filter(c =>
+    const allChanges = shiftChangeLog.filter(c =>
       c.staffId === staffId && c.year === year && c.month === month &&
-      c.at > thirtyDaysAgo && // 直近30日以内のみ
+      c.at > thirtyDaysAgo &&
       (!dismissedAt || c.at > dismissedAt)
     );
-    if (newChanges.length > 0) {
-      // 同じ日付は最新変更のみ表示
-      const byDay = {};
-      newChanges.forEach(c => { byDay[c.day] = c; });
-      const sorted = Object.values(byDay).sort((a,b) => a.day - b.day);
-      notifBody.innerHTML = sorted.map(c => {
-        const hol = getHoliday(c.year, c.month, c.day);
-        const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
-        return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
-          <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
-          &nbsp;${patName(c.from)} → <strong style="color:var(--primary);">${patName(c.to)}</strong>
-        </div>`;
-      }).join('');
+    // 通常シフト変更（type なし）と宿直変更（type あり）を分離
+    const shiftChanges   = allChanges.filter(c => !c.type);
+    const shukuchoChanges = allChanges.filter(c => c.type === 'shukucho_add' || c.type === 'shukucho_remove');
+
+    if (shiftChanges.length > 0 || shukuchoChanges.length > 0) {
+      let html = '';
+      // ── 通常シフト変更行（同じ日は最新のみ）──
+      if (shiftChanges.length > 0) {
+        const byDay = {};
+        shiftChanges.forEach(c => { byDay[c.day] = c; });
+        html += Object.values(byDay).sort((a,b) => a.day - b.day).map(c => {
+          const hol = getHoliday(c.year, c.month, c.day);
+          const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
+          return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
+            <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
+            &nbsp;${patName(c.from)} → <strong style="color:var(--primary);">${patName(c.to)}</strong>
+          </div>`;
+        }).join('');
+      }
+      // ── 宿直変更行（同じ日は最新のみ）──
+      if (shukuchoChanges.length > 0) {
+        const byDayS = {};
+        shukuchoChanges.forEach(c => { if (!byDayS[c.day] || c.at > byDayS[c.day].at) byDayS[c.day] = c; });
+        html += Object.values(byDayS).sort((a,b) => a.day - b.day).map(c => {
+          const hol = getHoliday(c.year, c.month, c.day);
+          const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
+          const label = c.type === 'shukucho_add' ? '🌙 宿直が追加されました' : '🌙 宿直が外れました';
+          return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
+            <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
+            &nbsp;<strong style="color:#4A235A;">${label}</strong>
+          </div>`;
+        }).join('');
+      }
+      notifBody.innerHTML = html;
       notifEl.style.display = '';
     } else {
       notifEl.style.display = 'none';
