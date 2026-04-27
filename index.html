@@ -1136,6 +1136,14 @@
           style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);padding:4px;">👁️</button>
       </div>
     </div>
+    <div class="form-group">
+      <label>freee連携</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
+        <input type="checkbox" id="staff-freee-input" checked style="width:16px;height:16px;accent-color:var(--primary);">
+        <span>勤怠データをfreeeに出力する</span>
+      </label>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">freeeに従業員登録済みの場合はONにしてください</div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('add-staff-modal')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveStaff()">保存</button>
@@ -4883,7 +4891,10 @@ function renderStaffPage() {
       <td><span class="dept-badge dept-${deptKey}">${s.dept}</span></td>
       <td class="hide-mobile">${s.role ? `<span class="role-badge">${s.role}</span>` : '<span style="color:var(--text-muted);font-size:12px">—</span>'}</td>
       <td class="hide-mobile">${s.type}</td>
-      <td><span class="status-dot ${s.active?'status-active':'status-inactive'}"></span>${s.active?'在籍中':'休職中'}</td>
+      <td>
+        <span class="status-dot ${s.active?'status-active':'status-inactive'}"></span>${s.active?'在籍中':'休職中'}
+        ${s.freeeEnabled !== false ? '<span style="font-size:10px;background:#E8F4FD;color:#1565C0;border-radius:3px;padding:1px 4px;margin-left:4px;">🔗freee</span>' : ''}
+      </td>
       <td><div style="display:flex;gap:4px;flex-wrap:wrap;">
         <button class="btn btn-outline btn-sm" onclick="openEditStaff('${sid}')">編集</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleStaffStatus('${sid}')">${s.active?'休職':'復帰'}</button>
@@ -4966,6 +4977,7 @@ function openAddStaff() {
   document.getElementById('staff-pw-label').textContent = 'パスワード（初期）';
   if (document.getElementById('staff-weekly-days-input')) document.getElementById('staff-weekly-days-input').value = '4';
   if (document.getElementById('staff-weekly-hours-input')) document.getElementById('staff-weekly-hours-input').value = '20';
+  document.getElementById('staff-freee-input').checked = true; // 新規はfreee連携デフォルトON
   populateStaffModal();
   toggleWeeklyHoursField();
   openModal('add-staff-modal');
@@ -4987,6 +4999,7 @@ function openEditStaff(staffId) {
   const hoursEl = document.getElementById('staff-weekly-hours-input');
   if (daysEl)  daysEl.value  = s.scheduledWeeklyDays  ?? 4;
   if (hoursEl) hoursEl.value = s.scheduledWeeklyHours ?? 20;
+  document.getElementById('staff-freee-input').checked = s.freeeEnabled !== false; // 未設定は true 扱い
   populateStaffModal(s.dept, s.role||'');
   toggleWeeklyHoursField();
   previewHireDate();
@@ -5010,6 +5023,7 @@ function saveStaff() {
     hireDate: hireInputVal || '',
     scheduledWeeklyDays:  staffType === '正社員' ? 5 : (parseInt(document.getElementById('staff-weekly-days-input')?.value) || 4),
     scheduledWeeklyHours: staffType === '正社員' ? 40 : (parseFloat(document.getElementById('staff-weekly-hours-input')?.value) || 20),
+    freeeEnabled: document.getElementById('staff-freee-input').checked,
   };
   if (!data.name || !data.id) { showToast('氏名とIDを入力してください'); return; }
   if (editId === '') {
@@ -6146,7 +6160,7 @@ function exportFreeeCSV() {
   const kekkinStaffSet = new Set(); // 残日数0で有休セルがあるスタッフID
 
   getOrderedStaff().forEach(s => {
-    if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
+    if (FREEE_EXCLUDE_STAFF.has(s.id) || s.freeeEnabled === false) return;
     if ((s.paidLeaveBalance || 0) > 0) return; // 残あり → 変換不要
     const yukyuDays = [];
     for (let d = 1; d <= days; d++) {
@@ -6170,7 +6184,7 @@ function exportFreeeCSV() {
     const halfLeaveItems = []; // 半休あり行の記録 { date, staffName, patName, halfLeaveType }
 
     getOrderedStaff().forEach(s => {
-      if (!FREEE_STAFF_WHITELIST.has(s.id)) return;
+      if (FREEE_EXCLUDE_STAFF.has(s.id) || s.freeeEnabled === false) return;
       const forceKekkin = kekkinStaffSet.has(s.id);
 
       for (let d = 1; d <= days; d++) {
