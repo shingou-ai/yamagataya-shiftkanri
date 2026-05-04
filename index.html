@@ -1941,7 +1941,13 @@ let _fbAuthReady = false;
           Object.values(so).forEach(ovr => {
             if (!ovr || !ovr.id) return;
             const s = STAFF.find(x => x.id === ovr.id);
-            if (s && ovr.password) s.password = ovr.password;
+            if (s) {
+              if (ovr.password) s.password = ovr.password;
+            } else if (ovr.name) {
+              // ハードコードにいない新規追加スタッフ → ログイン前にSTAFFへ追加
+              if (!ovr.hasOwnProperty('password')) ovr.password = '';
+              STAFF.push(ovr);
+            }
           });
         }
         _fbAuthReady = true;
