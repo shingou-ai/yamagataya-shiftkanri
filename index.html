@@ -1970,9 +1970,8 @@ let _fbAuthReady = false;
       } else {
         // 未認証 → 匿名認証してデータ読み込み
         firebase.auth().signInAnonymously().catch(() => {
-          _fbAuthReady = true;
-          const lb = document.querySelector('.login-btn');
-          if (lb) { lb.disabled = false; lb.textContent = 'ログイン'; }
+          // 匿名認証失敗時もDBからスタッフデータ読み込みを試みる（Redmi等でauth失敗でも読める場合がある）
+          _loadFirebaseData();
         });
       }
     });
