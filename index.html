@@ -1032,25 +1032,29 @@
           <div class="card-title">📝 新規申請</div>
           <div id="unavail-form-area">
             <div class="form-group">
-              <label>希望日 <span style="color:var(--danger);">*</span></label>
+              <label data-i18n="unavail_date_label">希望日</label> <span style="color:var(--danger);">*</span>
               <input type="date" class="form-input" id="unavail-date-input">
               <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">翌月分の申請締切：毎月<strong>23日</strong></div>
             </div>
             <div class="form-group">
-              <label>希望の勤務パターン <span style="color:var(--danger);">*</span></label>
+              <label data-i18n="unavail_pattern_label">希望の勤務パターン</label> <span style="color:var(--danger);">*</span>
               <select class="form-input" id="unavail-pattern-input" onchange="onUnavailPatternChange()">
                 <option value="">--- パターンを選択してください ---</option>
               </select>
               <div id="unavail-pattern-preview" style="margin-top:6px;min-height:20px;"></div>
             </div>
             <div class="form-group">
-              <label>希望理由 <span style="color:var(--danger);">*</span></label>
+              <label data-i18n="unavail_reason_label">希望理由</label> <span style="color:var(--danger);">*</span>
               <select class="form-input" id="unavail-reason-input">
                 <option value="">--- 理由を選択してください ---</option>
               </select>
             </div>
+            <div class="form-group">
+              <label data-i18n="unavail_note_label">備考（任意・日本語で記入）</label>
+              <input type="text" class="form-input" id="unavail-note-input" maxlength="200">
+            </div>
             <div style="display:flex;justify-content:flex-end;">
-              <button class="btn btn-primary" onclick="submitUnavailRequest()">📨 申請する</button>
+              <button class="btn btn-primary" onclick="submitUnavailRequest()"><span data-i18n="unavail_submit_btn">申請する</span></button>
             </div>
           </div>
           <div id="unavail-form-closed" style="display:none;padding:12px;background:#FFF3CD;border-radius:var(--radius-sm);font-size:13px;color:#7B4F00;">
@@ -3192,11 +3196,12 @@ function dismissUnavailNotif() {
 }
 
 // ===== 勤務希望申請：送信 =====
-function submitUnavailRequest() {
+async function submitUnavailRequest() {
   const dateVal   = document.getElementById('unavail-date-input').value;
   const patId     = document.getElementById('unavail-pattern-input').value;
   const reasonSel = document.getElementById('unavail-reason-input').value;
   const otherTxt  = document.getElementById('unavail-reason-other-input')?.value.trim() || '';
+  const noteRaw   = document.getElementById('unavail-note-input')?.value.trim() || '';
   const reason    = reasonSel === 'reason_other' ? `reason_other:${otherTxt}` : reasonSel;
   if (!dateVal)   { showToast(t('toast_select_date')); return; }
   if (!patId)     { showToast(t('toast_select_pattern')); return; }
@@ -3205,8 +3210,7 @@ function submitUnavailRequest() {
   const [y, m, d] = dateVal.split('-').map(Number);
   const today     = new Date();
   const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const targetDate = new Date(y, m-1, d);
-  if (targetDate <= todayNorm) { showToast(t('toast_past_date')); return; }
+  if (new Date(y, m-1, d) <= todayNorm) { showToast(t('toast_past_date')); return; }
   if (_unavailDeadlinePassed(y, m)) {
     const dm2 = m===1 ? 12 : m-1, dy2 = m===1 ? y-1 : y;
     showToast(`${y}年${m}月分の申請は${dy2}年${dm2}月${UNAVAIL_DEADLINE_DAY}日で締め切られました`);
@@ -3218,13 +3222,32 @@ function submitUnavailRequest() {
     r.staffId === currentStaffId && r.year===y && r.month===m && r.day===d && r.status !== 'rejected'
   );
   if (dup) { showToast(t('toast_already_applied')); return; }
+
+  let note = noteRaw;
+  let noteOriginal = null;
+  let noteTranslateError = false;
+  if (currentLang === 'en' && noteRaw) {
+    showToast(t('toast_translating'));
+    const translated = await translateToJa(noteRaw);
+    if (translated) {
+      note = translated;
+      noteOriginal = noteRaw;
+    } else {
+      note = noteRaw;
+      noteTranslateError = true;
+    }
+  }
+
   const reqId = 'ur_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
   const req = {
     staffId: currentStaffId, staffName: currentStaffName,
     year: y, month: m, day: d,
     patternId: patId, patternName: patName(patId),
     reason, status: 'pending',
-    submittedAt: Date.now(), decidedAt: null, decidedBy: null
+    submittedAt: Date.now(), decidedAt: null, decidedBy: null,
+    ...(note ? { note } : {}),
+    ...(noteOriginal ? { noteOriginal } : {}),
+    ...(noteTranslateError ? { noteTranslateError: true } : {}),
   };
   unavailRequests[reqId] = req;
   fbSave(`/unavailRequests/${reqId}`, req);
@@ -3232,6 +3255,7 @@ function submitUnavailRequest() {
   document.getElementById('unavail-pattern-input').value = '';
   document.getElementById('unavail-reason-input').value = '';
   if (document.getElementById('unavail-reason-other-input')) document.getElementById('unavail-reason-other-input').value = '';
+  if (document.getElementById('unavail-note-input')) document.getElementById('unavail-note-input').value = '';
   const otherWrap = document.getElementById('unavail-reason-other-wrap');
   if (otherWrap) otherWrap.style.display = 'none';
   onUnavailPatternChange();
@@ -3274,6 +3298,8 @@ function renderUnavailManage() {
           <div>
             <div style="font-weight:700;font-size:13px;">${r.staffName}　${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）${patBadge}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${_displayReason(r)}</div>
+            ${r.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📝 ${r.note}${r.noteTranslateError ? ' <span style="color:var(--warning);">⚠️ 未翻訳（原文）</span>' : ''}</div>` : ''}
+            ${r.noteOriginal ? `<div style="font-size:11px;color:var(--text-muted);">原文: ${r.noteOriginal}</div>` : ''}
             <div style="font-size:11px;color:var(--text-muted);">申請日：${new Date(r.submittedAt).toLocaleDateString('ja-JP')}</div>
           </div>
           <div style="display:flex;gap:8px;">
@@ -3326,6 +3352,8 @@ function renderUnavailManage() {
           <div>
             <div style="font-weight:700;font-size:13px;">${r.staffName}　${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）${patBadge}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${_displayReason(r)}</div>
+            ${r.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📝 ${r.note}${r.noteTranslateError ? ' <span style="color:var(--warning);">⚠️ 未翻訳（原文）</span>' : ''}</div>` : ''}
+            ${r.noteOriginal ? `<div style="font-size:11px;color:var(--text-muted);">原文: ${r.noteOriginal}</div>` : ''}
             <div style="font-size:11px;color:var(--text-muted);">${processedDate}</div>
           </div>
           <div style="display:flex;align-items:center;">${badge}${cancelBtn}</div>
