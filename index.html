@@ -55,6 +55,8 @@
   .header-user { font-size:13px; opacity:.85; }
   .logout-btn { background:rgba(255,255,255,.15); border:none; color:white; padding:6px 12px; border-radius:20px; cursor:pointer; font-size:12px; }
   .logout-btn:hover { background:rgba(255,255,255,.25); }
+  .lang-toggle-btn { background:rgba(255,255,255,.15); border:none; color:white; padding:6px 10px; border-radius:20px; cursor:pointer; font-size:12px; letter-spacing:1px; }
+  .lang-toggle-btn:hover { background:rgba(255,255,255,.25); }
   .role-switch-btn { background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.5); color:white; padding:6px 12px; border-radius:20px; cursor:pointer; font-size:12px; font-weight:600; }
   .role-switch-btn:hover { background:rgba(255,255,255,.4); }
   .app-body { display:flex; flex:1; }
@@ -1530,6 +1532,147 @@
 <script>
 // ===== DATA =====
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+// ===== i18n =====
+let currentLang = (() => { try { return localStorage.getItem('ymLang') || 'ja'; } catch(e) { return 'ja'; } })();
+
+const I18N = {
+  ja: {
+    select_role:'ログイン区分を選択してください', role_admin:'管理者', role_staff:'スタッフ',
+    login_id:'ID', login_password:'パスワード', login_btn:'ログイン',
+    login_error:'IDまたはパスワードが正しくありません',
+    logout_btn:'ログアウト', badge_staff:'スタッフ',
+    nav_my_shift:'マイシフト', nav_all_shift:'全体シフト表',
+    nav_shift_req:'休み希望申請', nav_unavail_req:'勤務希望申請',
+    my_shift_title:'マイシフト', all_shift_title:'全体シフト表',
+    shift_req_title:'休み希望申請',
+    weekday_sun:'日', weekday_mon:'月', weekday_tue:'火', weekday_wed:'水',
+    weekday_thu:'木', weekday_fri:'金', weekday_sat:'土',
+    shift_kokyu:'公休', shift_yukyu:'有休', shift_kibou:'希望休', shift_kekkin:'欠勤',
+    half_am_kokyu:'半休AM（公休）', half_pm_kokyu:'半休PM（公休）',
+    half_am_yukyu:'半休AM（有休）', half_pm_yukyu:'半休PM（有休）',
+    unavail_title:'勤務希望申請',
+    unavail_remaining:'残り申請回数', unavail_used:'申請済み（承認待含む）', unavail_limit:'月の上限',
+    unavail_deadline:'締切', unavail_deadline_passed:'（締切済み）',
+    unavail_date_label:'希望日', unavail_pattern_label:'希望の勤務パターン',
+    unavail_reason_label:'希望理由', unavail_note_label:'備考（任意・日本語で記入）',
+    unavail_submit_btn:'申請する', unavail_form_closed:'申請期限が過ぎています',
+    unavail_status_pending:'承認待ち', unavail_status_approved:'承認',
+    unavail_status_rejected:'却下', unavail_status_cancelled:'取消',
+    reason_private:'📅 私的な予定がある', reason_medical:'🏥 通院・医療',
+    reason_ceremony:'💒 冠婚葬祭', reason_school:'🏫 子の学校行事',
+    reason_family:'👨‍👩‍👦 家族の介護・育児', reason_other:'📋 その他',
+    reason_other_placeholder:'理由を具体的にご記入ください',
+    toast_select_date:'希望日を選択してください',
+    toast_select_pattern:'希望の勤務パターンを選択してください',
+    toast_select_reason:'希望理由を選択してください',
+    toast_other_required:'「その他」を選択した場合は理由を記入してください',
+    toast_past_date:'過去・当日の日付は申請できません',
+    toast_already_applied:'この日はすでに申請済みです',
+    toast_submitted:'勤務希望申請を提出しました ✅',
+    toast_translating:'備考を翻訳中...',
+  },
+  en: {
+    select_role:'Please select your role', role_admin:'Admin', role_staff:'Staff',
+    login_id:'ID', login_password:'Password', login_btn:'Login',
+    login_error:'Incorrect ID or password',
+    logout_btn:'Logout', badge_staff:'Staff',
+    nav_my_shift:'My Shift', nav_all_shift:'All Shifts',
+    nav_shift_req:'Request Day Off', nav_unavail_req:'Work Preference',
+    my_shift_title:'My Shift', all_shift_title:'All Shifts',
+    shift_req_title:'Day Off Request',
+    weekday_sun:'Sun', weekday_mon:'Mon', weekday_tue:'Tue', weekday_wed:'Wed',
+    weekday_thu:'Thu', weekday_fri:'Fri', weekday_sat:'Sat',
+    shift_kokyu:'Day Off', shift_yukyu:'Paid Leave', shift_kibou:'Requested Off', shift_kekkin:'Absent',
+    half_am_kokyu:'Half Day AM (Day Off)', half_pm_kokyu:'Half Day PM (Day Off)',
+    half_am_yukyu:'Half Day AM (Paid Leave)', half_pm_yukyu:'Half Day PM (Paid Leave)',
+    unavail_title:'Work Preference Request',
+    unavail_remaining:'Requests Remaining', unavail_used:'Submitted (incl. pending)', unavail_limit:'Monthly Limit',
+    unavail_deadline:'Deadline', unavail_deadline_passed:'(Deadline Passed)',
+    unavail_date_label:'Preferred Date', unavail_pattern_label:'Preferred Work Pattern',
+    unavail_reason_label:'Reason', unavail_note_label:'Notes (optional, any language)',
+    unavail_submit_btn:'Submit', unavail_form_closed:'The application period has ended',
+    unavail_status_pending:'Pending', unavail_status_approved:'Approved',
+    unavail_status_rejected:'Rejected', unavail_status_cancelled:'Cancelled',
+    reason_private:'📅 Personal plans', reason_medical:'🏥 Medical appointment',
+    reason_ceremony:'💒 Wedding / Funeral', reason_school:"🏫 Child's school event",
+    reason_family:'👨‍👩‍👦 Family care / Childcare', reason_other:'📋 Other',
+    reason_other_placeholder:'Please describe the reason',
+    toast_select_date:'Please select a preferred date',
+    toast_select_pattern:'Please select a work pattern',
+    toast_select_reason:'Please select a reason',
+    toast_other_required:'Please describe the reason when selecting "Other"',
+    toast_past_date:"Cannot apply for today's or a past date",
+    toast_already_applied:'You have already applied for this date',
+    toast_submitted:'Work preference submitted ✅',
+    toast_translating:'Translating notes...',
+  }
+};
+
+function t(key) { return I18N[currentLang]?.[key] ?? I18N.ja[key] ?? key; }
+function t_ja(key) { return I18N.ja[key] ?? key; }
+
+const SHIFT_TYPE_I18N = {
+  '公休': 'shift_kokyu', '有休': 'shift_yukyu', '希望休': 'shift_kibou', '欠勤': 'shift_kekkin',
+};
+const HALF_DAY_I18N = {
+  'AM_kokyu': 'half_am_kokyu', 'PM_kokyu': 'half_pm_kokyu',
+  'AM_yukyu': 'half_am_yukyu', 'PM_yukyu': 'half_pm_yukyu',
+};
+function shiftTypeLabel(name) {
+  const key = SHIFT_TYPE_I18N[name];
+  return key ? t(key) : name;
+}
+function halfDayLabel(flag) {
+  const key = HALF_DAY_I18N[flag];
+  return key ? t(key) : flag;
+}
+
+const WEEKDAYS_I18N = ['weekday_sun','weekday_mon','weekday_tue','weekday_wed','weekday_thu','weekday_fri','weekday_sat'];
+function weekdayLabel(index) { return t(WEEKDAYS_I18N[index]); }
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+}
+function updateLangBtn() {
+  const ja = document.getElementById('lang-label-ja');
+  const en = document.getElementById('lang-label-en');
+  if (!ja || !en) return;
+  ja.style.fontWeight = currentLang === 'ja' ? '700' : '400';
+  ja.style.opacity    = currentLang === 'ja' ? '1'   : '0.5';
+  en.style.fontWeight = currentLang === 'en' ? '700' : '400';
+  en.style.opacity    = currentLang === 'en' ? '1'   : '0.5';
+}
+function rerenderStaff() {
+  applyI18n();
+  const pid = document.querySelector('.page.active')?.id;
+  if (pid === 'page-my-shift')        renderMyShift();
+  if (pid === 'page-all-shift')       renderAllShiftTable();
+  if (pid === 'page-shift-req-form')  renderReqHistory();
+  if (pid === 'page-unavail-request') renderUnavailRequest();
+}
+function setLang(lang) {
+  currentLang = lang;
+  try { localStorage.setItem('ymLang', lang); } catch(e) {}
+  updateLangBtn();
+  rerenderStaff();
+}
+// Google Translate API
+const GOOGLE_TRANSLATE_API_KEY = ''; // Google CloudコンソールでTranslation APIに限定したキーを設定
+async function translateToJa(text) {
+  if (!GOOGLE_TRANSLATE_API_KEY || !text.trim()) return null;
+  try {
+    const res = await fetch(
+      `https://translation.googleapis.com/language/translate/v2?key=${GOOGLE_TRANSLATE_API_KEY}`,
+      { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ q: text, target: 'ja', source: 'en' }) }
+    );
+    const data = await res.json();
+    return data.translations?.[0]?.translatedText ?? null;
+  } catch(e) { return null; }
+}
 
 let DEPTS = ['フロント','ルーム','板場','調理朝','部屋清掃','夜警','共用','洗浄'];
 let ROLES = ['会長','社長','若女将','女将','部長','板長','リーダー'];
