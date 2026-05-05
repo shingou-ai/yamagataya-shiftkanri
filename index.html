@@ -813,7 +813,7 @@
       <!-- PAGE: 全体シフト表 (スタッフ) -->
       <div class="page" id="page-all-shift">
         <div class="page-header">
-          <div><div class="page-title">👥 全体シフト表</div><div class="page-subtitle">閲覧専用</div></div>
+          <div><div class="page-title">👥 <span data-i18n="all_shift_title">全体シフト表</span></div><div class="page-subtitle">閲覧専用</div></div>
           <div class="month-nav">
             <button class="month-nav-btn" onclick="changeMonth(-1,'all-shift')">‹</button>
             <div class="month-label" id="month-label-all"></div>
@@ -966,7 +966,7 @@
       <!-- PAGE: 休み希望申請 -->
       <div class="page" id="page-shift-req-form">
         <div class="page-header">
-          <div><div class="page-title">✏️ 休み希望申請</div><div class="page-subtitle" id="req-form-subtitle">休みたい日を選んで提出してください（提出先：瓜生 渚）</div></div>
+          <div><div class="page-title">✏️ <span data-i18n="shift_req_title">休み希望申請</span></div><div class="page-subtitle" id="req-form-subtitle">休みたい日を選んで提出してください（提出先：瓜生 渚）</div></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="card-title" id="req-form-card-title">📅 希望入力</div>
@@ -4953,7 +4953,7 @@ function renderAllShiftTable() {
     if (d===_tD)    cls += ' today-col';
     const holTitle = hol ? ` title="${hol}"` : '';
     const holLabel = hol ? `<span style="font-size:8px;display:block;line-height:1.1;">${hol.slice(0,3)}</span>` : '';
-    thead += `<th class="${cls}"${holTitle}>${d}<br><span style="font-size:9px">${WEEKDAYS[w]}</span>${holLabel}</th>`;
+    thead += `<th class="${cls}"${holTitle}>${d}<br><span style="font-size:9px">${weekdayLabel(w)}</span>${holLabel}</th>`;
   }
   thead += '<th style="min-width:40px;position:sticky;top:0;">出勤</th><th style="min-width:40px;position:sticky;top:0;">休み</th></tr></thead>';
 
