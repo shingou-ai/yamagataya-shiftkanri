@@ -1669,6 +1669,7 @@ async function translateToJa(text) {
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ q: text, target: 'ja', source: 'en' }) }
     );
+    if (!res.ok) return null;
     const data = await res.json();
     return data.translations?.[0]?.translatedText ?? null;
   } catch(e) { return null; }
