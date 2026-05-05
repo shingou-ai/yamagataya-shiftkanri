@@ -784,7 +784,7 @@
           <div id="event-notif-body" style="font-size:13px;line-height:1.9;"></div>
         </div>
         <div class="page-header">
-          <div><div class="page-title">📅 マイシフト</div><div class="page-subtitle" id="my-shift-subtitle">田村 花子さんのシフト</div></div>
+          <div><div class="page-title">📅 <span data-i18n="my_shift_title">マイシフト</span></div><div class="page-subtitle" id="my-shift-subtitle">田村 花子さんのシフト</div></div>
           <div class="month-nav">
             <button class="month-nav-btn" onclick="changeMonth(-1,'my-shift')">‹</button>
             <div class="month-label" id="month-label-staff"></div>
@@ -794,13 +794,13 @@
         <div class="card" style="margin-bottom:20px;">
           <div class="card-title">📆 月間カレンダー</div>
           <div class="my-cal-header">
-            <div style="color:#E53935;">日</div>
-            <div style="color:var(--text-muted);">月</div>
-            <div style="color:var(--text-muted);">火</div>
-            <div style="color:var(--text-muted);">水</div>
-            <div style="color:var(--text-muted);">木</div>
-            <div style="color:var(--text-muted);">金</div>
-            <div style="color:#1976D2;">土</div>
+            <div style="color:#E53935;" data-i18n="weekday_sun">日</div>
+            <div style="color:var(--text-muted);" data-i18n="weekday_mon">月</div>
+            <div style="color:var(--text-muted);" data-i18n="weekday_tue">火</div>
+            <div style="color:var(--text-muted);" data-i18n="weekday_wed">水</div>
+            <div style="color:var(--text-muted);" data-i18n="weekday_thu">木</div>
+            <div style="color:var(--text-muted);" data-i18n="weekday_fri">金</div>
+            <div style="color:#1976D2;" data-i18n="weekday_sat">土</div>
           </div>
           <div class="my-month-grid" id="my-calendar-grid"></div>
         </div>
@@ -6672,7 +6672,9 @@ function renderMyShift() {
   const staffId = currentStaffId;
   const staffName = currentStaffName || '';
   if (!staffId) return;
-  document.getElementById('my-shift-subtitle').textContent = `${staffName}さんのシフト (${year}年${month}月)`;
+  document.getElementById('my-shift-subtitle').textContent = currentLang === 'en'
+    ? `${staffName}'s Shift (${year}/${month})`
+    : `${staffName}さんのシフト (${year}年${month}月)`;
   // シフト希望結果通知バナー
   const reqNotifEl = document.getElementById('req-notif');
   const reqNotifBody = document.getElementById('req-notif-body');
@@ -6692,7 +6694,7 @@ function renderMyShift() {
         const daysText = n.days && n.days.length
           ? n.days.map(d => {
               const w = dow(n.year, n.month, d);
-              return `${n.month}月${d}日（${WEEKDAYS[w]}）`;
+              return `${n.month}月${d}日（${weekdayLabel(w)}）`;
             }).join('・')
           : `${n.month}月分`;
         return `<div style="padding:4px 0;border-bottom:1px dashed #90CAF9;">${daysText} の休み希望が ${statusHtml}</div>`;
@@ -6727,7 +6729,7 @@ function renderMyShift() {
           const hol = getHoliday(c.year, c.month, c.day);
           const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
           return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
-            <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
+            <span style="font-weight:700;">${c.month}月${c.day}日（${weekdayLabel(dow(c.year,c.month,c.day))}）${holBadge}</span>
             &nbsp;${patName(c.from)} → <strong style="color:var(--primary);">${patName(c.to)}</strong>
           </div>`;
         }).join('');
@@ -6741,7 +6743,7 @@ function renderMyShift() {
           const holBadge = hol ? ` <span style="font-size:10px;color:var(--danger);">（${hol}）</span>` : '';
           const label = c.type === 'shukucho_add' ? '🌙 宿直が追加されました' : '🌙 宿直が外れました';
           return `<div style="padding:4px 0;border-bottom:1px dashed #FFD580;">
-            <span style="font-weight:700;">${c.month}月${c.day}日（${WEEKDAYS[dow(c.year,c.month,c.day)]}）${holBadge}</span>
+            <span style="font-weight:700;">${c.month}月${c.day}日（${weekdayLabel(dow(c.year,c.month,c.day))}）${holBadge}</span>
             &nbsp;<strong style="color:#4A235A;">${label}</strong>
           </div>`;
         }).join('');
@@ -6789,9 +6791,10 @@ function renderMyShift() {
     // フレックスパターンはセルに時間ラベルを表示
     const _myFlexKey = `${year}-${month}-${d}-${staffId}`;
     const _myFlex = (p && p.flex) ? flexTimes[_myFlexKey] : null;
+    const _cellLabel = shiftTypeLabel(shift);
     const shortShift = (p && p.flex)
       ? (_myFlex && _myFlex.start && _myFlex.end ? `${_myFlex.start.replace(/^0/,'').replace(':00','')}-${_myFlex.end.replace(/^0/,'').replace(':00','')}` : 'FX')
-      : (shift.length > 2 ? shift.slice(0, 2) : shift);
+      : (_cellLabel.length > 2 ? _cellLabel.slice(0, 2) : _cellLabel);
     // 時刻（終日・半日系は非表示。フレックスは flexTimes から取得）
     let timeHtml = '';
     if (p && p.flex && _myFlex && _myFlex.start && _myFlex.end) {
@@ -6862,13 +6865,13 @@ function renderMyShift() {
         <div class="my-shift-date" style="padding-top:2px;">
           ${monthLabel}
           <div class="my-shift-day-num" style="${w===0||holiday?'color:var(--danger)':w===6?'color:var(--info)':''}">${dd}</div>
-          <div class="my-shift-day-label">${WEEKDAYS[w]}曜日</div>
+          <div class="my-shift-day-label">${weekdayLabel(w)}${currentLang==='ja'?'曜日':''}</div>
           ${holiday ? `<div style="font-size:8px;color:var(--danger);margin-top:2px;">${holiday.slice(0,4)}</div>` : ''}
         </div>
         <div class="my-shift-info">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shift}</span>
-            ${_upcoming7HalfType && _upcoming7HalfType.includes('yukyu') ? `<span style="background:#059669;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休${_upcoming7HalfType.startsWith('AM')?'AM':'PM'}（有休）</span>` : _upcoming7HalfType && _upcoming7HalfType.includes('kokyu') ? `<span style="background:#7C3AED;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">🌗 半休${_upcoming7HalfType.startsWith('AM')?'AM':'PM'}（公休）</span>` : ''}
+            <span class="shift-badge" style="background:${bg};color:${fg};font-size:13px;padding:3px 10px;">${shiftTypeLabel(shift)}</span>
+            ${_upcoming7HalfType ? `<span style="background:${_upcoming7HalfType.includes('yukyu')?'#059669':'#7C3AED'};color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">${halfDayLabel(_upcoming7HalfType)}</span>` : ''}
             ${isShukuchoDay ? `<span style="background:#EDE7F6;color:#4A235A;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;">宿直</span>` : ''}
             ${hoursText ? `<span style="font-size:12px;font-weight:700;color:var(--primary);">${hoursText}</span>` : ''}
           </div>
