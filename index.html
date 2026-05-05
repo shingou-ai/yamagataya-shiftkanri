@@ -511,7 +511,8 @@
       <span class="header-badge" id="role-badge">管理者</span>
       <span class="header-user" id="user-name-header">田中 管理子</span>
       <button id="role-switch-btn" class="role-switch-btn" onclick="switchRole()" style="display:none">👤 スタッフ切替</button>
-      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+      <button class="lang-toggle-btn" onclick="setLang(currentLang==='ja'?'en':'ja')"><span id="lang-label-ja" style="font-weight:700">JA</span> / <span id="lang-label-en" style="opacity:.5">EN</span></button>
+      <button class="logout-btn" data-i18n="logout_btn" onclick="doLogout()">ログアウト</button>
     </div>
   </div>
   <!-- バージョン更新バナー（新しいデプロイを検知したとき表示） -->
@@ -2698,6 +2699,7 @@ function _enterApp(isAuto) {
   document.getElementById('bottom-nav-admin').style.display = currentRole==='admin' ? '' : 'none';
   document.getElementById('bottom-nav-staff').style.display = currentRole==='staff' ? '' : 'none';
   updateRoleSwitchBtn();
+  updateLangBtn();
   staffDisplayOrder = STAFF.filter(s=>s.active).map(s=>s.id);
   const _initLabel = `${currentMonth.year}年${currentMonth.month}月`;
   ['month-label','month-label-staff','month-label-all','month-label-report'].forEach(id => {
