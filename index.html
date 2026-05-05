@@ -488,14 +488,14 @@
     <div class="login-logo">🏯</div>
     <div class="login-title">山形屋シフト管理</div>
     <div class="login-subtitle">旅館スタッフ専用システム</div>
-    <div class="login-role-label">ログイン区分を選択してください</div>
+    <div class="login-role-label" data-i18n="select_role">ログイン区分を選択してください</div>
     <div class="role-btns">
-      <div class="role-btn active" onclick="selectRole('admin')" id="role-admin"><span class="role-icon">🔑</span>管理者</div>
-      <div class="role-btn" onclick="selectRole('staff')" id="role-staff"><span class="role-icon">👤</span>スタッフ</div>
+      <div class="role-btn active" onclick="selectRole('admin')" id="role-admin"><span class="role-icon">🔑</span><span data-i18n="role_admin">管理者</span></div>
+      <div class="role-btn" onclick="selectRole('staff')" id="role-staff"><span class="role-icon">👤</span><span data-i18n="role_staff">スタッフ</span></div>
     </div>
-    <div class="form-group"><label>ID</label><input class="form-input" type="text" id="login-id" value="admin01" placeholder="IDを入力"></div>
-    <div class="form-group"><label>パスワード</label><input class="form-input" type="password" id="login-pw" placeholder="パスワードを入力"></div>
-    <div id="login-error" style="color:var(--danger);font-size:13px;text-align:center;display:none;margin-bottom:8px;">IDまたはパスワードが正しくありません</div>
+    <div class="form-group"><label data-i18n="login_id">ID</label><input class="form-input" type="text" id="login-id" value="admin01" placeholder="IDを入力"></div>
+    <div class="form-group"><label data-i18n="login_password">パスワード</label><input class="form-input" type="password" id="login-pw" placeholder="パスワードを入力"></div>
+    <div id="login-error" data-i18n="login_error" style="color:var(--danger);font-size:13px;text-align:center;display:none;margin-bottom:8px;">IDまたはパスワードが正しくありません</div>
     <button class="login-btn" onclick="doLogin()" disabled>読み込み中…</button>
   </div>
 </div>
@@ -550,10 +550,10 @@
     <!-- SIDEBAR STAFF -->
     <div class="sidebar" id="sidebar-staff" style="display:none">
       <div class="nav-section">
-        <div class="nav-item" onclick="showPage('my-shift')" id="nav-my-shift"><span class="nav-icon">📅</span>マイシフト</div>
-        <div class="nav-item" onclick="showPage('all-shift')" id="nav-all-shift"><span class="nav-icon">👥</span>全体シフト表</div>
-        <div class="nav-item" onclick="showPage('shift-req-form')" id="nav-shift-req-form"><span class="nav-icon">✏️</span>休み希望申請</div>
-        <div class="nav-item" onclick="showPage('unavail-request')" id="nav-unavail-request"><span class="nav-icon">🙋</span>勤務希望申請</div>
+        <div class="nav-item" onclick="showPage('my-shift')" id="nav-my-shift"><span class="nav-icon">📅</span><span data-i18n="nav_my_shift">マイシフト</span></div>
+        <div class="nav-item" onclick="showPage('all-shift')" id="nav-all-shift"><span class="nav-icon">👥</span><span data-i18n="nav_all_shift">全体シフト表</span></div>
+        <div class="nav-item" onclick="showPage('shift-req-form')" id="nav-shift-req-form"><span class="nav-icon">✏️</span><span data-i18n="nav_shift_req">休み希望申請</span></div>
+        <div class="nav-item" onclick="showPage('unavail-request')" id="nav-unavail-request"><span class="nav-icon">🙋</span><span data-i18n="nav_unavail_req">勤務希望申請</span></div>
         <div class="nav-item" onclick="showPage('staff-pw-change')" id="nav-staff-pw-change"><span class="nav-icon">🔒</span>パスワード変更</div>
       </div>
     </div>
@@ -1078,10 +1078,10 @@
   </div>
   <!-- BOTTOM NAV staff -->
   <div class="bottom-nav" id="bottom-nav-staff" style="display:none">
-    <button class="bottom-nav-item active" onclick="showPage('my-shift');setBottomActive(this)"><span class="bottom-nav-icon">📅</span>マイシフト</button>
-    <button class="bottom-nav-item" onclick="showPage('all-shift');setBottomActive(this)"><span class="bottom-nav-icon">👥</span>全体表</button>
-    <button class="bottom-nav-item" onclick="showPage('shift-req-form');setBottomActive(this)"><span class="bottom-nav-icon">✏️</span>休み希望</button>
-    <button class="bottom-nav-item" onclick="showPage('unavail-request');setBottomActive(this)"><span class="bottom-nav-icon">🙋</span>希望申請</button>
+    <button class="bottom-nav-item active" onclick="showPage('my-shift');setBottomActive(this)"><span class="bottom-nav-icon">📅</span><span data-i18n="nav_my_shift">マイシフト</span></button>
+    <button class="bottom-nav-item" onclick="showPage('all-shift');setBottomActive(this)"><span class="bottom-nav-icon">👥</span><span data-i18n="nav_all_shift">全体表</span></button>
+    <button class="bottom-nav-item" onclick="showPage('shift-req-form');setBottomActive(this)"><span class="bottom-nav-icon">✏️</span><span data-i18n="nav_shift_req">休み希望</span></button>
+    <button class="bottom-nav-item" onclick="showPage('unavail-request');setBottomActive(this)"><span class="bottom-nav-icon">🙋</span><span data-i18n="nav_unavail_req">希望申請</span></button>
     <button class="bottom-nav-item" onclick="showPage('staff-pw-change');setBottomActive(this)"><span class="bottom-nav-icon">🔒</span>設定</button>
   </div>
 </div><!-- /app -->
@@ -2692,7 +2692,7 @@ function _enterApp(isAuto) {
   document.getElementById('login-screen').style.display = 'none';
   const app = document.getElementById('app');
   app.style.display = 'flex'; app.style.flexDirection = 'column';
-  document.getElementById('role-badge').textContent = currentRole==='admin' ? '管理者' : 'スタッフ';
+  document.getElementById('role-badge').textContent = currentRole==='admin' ? '管理者' : t('badge_staff');
   document.getElementById('user-name-header').textContent = currentStaffName;
   document.getElementById('sidebar-admin').style.display = currentRole==='admin' ? '' : 'none';
   document.getElementById('sidebar-staff').style.display = currentRole==='staff' ? '' : 'none';
@@ -3580,7 +3580,7 @@ function switchRole() {
     }
   }
   _saveSession();
-  document.getElementById('role-badge').textContent = currentRole === 'admin' ? '管理者' : 'スタッフ';
+  document.getElementById('role-badge').textContent = currentRole === 'admin' ? '管理者' : t('badge_staff');
   document.getElementById('user-name-header').textContent = currentStaffName;
   document.getElementById('sidebar-admin').style.display = currentRole === 'admin' ? '' : 'none';
   document.getElementById('sidebar-staff').style.display = currentRole === 'staff' ? '' : 'none';
