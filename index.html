@@ -1572,6 +1572,7 @@ const I18N = {
     toast_already_applied:'この日はすでに申請済みです',
     toast_submitted:'勤務希望申請を提出しました ✅',
     toast_translating:'備考を翻訳中...',
+    reason_other_placeholder:'理由を具体的にご記入ください',
   },
   en: {
     select_role:'Please select your role', role_admin:'Admin', role_staff:'Staff',
@@ -1607,6 +1608,7 @@ const I18N = {
     toast_already_applied:'You have already applied for this date',
     toast_submitted:'Work preference submitted ✅',
     toast_translating:'Translating notes...',
+    reason_other_placeholder:'Please describe the reason',
   }
 };
 
@@ -1996,12 +1998,12 @@ let shiftChangeLog = [];
 const MAX_UNAVAIL_PER_MONTH  = 5;   // 月あたりの申請上限
 const UNAVAIL_DEADLINE_DAY   = 23;  // 毎月の締切日
 const UNAVAIL_REASONS = [
-  '📅 私的な予定がある',
-  '🏥 通院・医療',
-  '💒 冠婚葬祭',
-  '🏫 子の学校行事',
-  '👨‍👩‍👦 家族の介護・育児',
-  '📋 その他',  // 「その他」選択時はテキスト入力を表示
+  'reason_private',
+  'reason_medical',
+  'reason_ceremony',
+  'reason_school',
+  'reason_family',
+  'reason_other',
 ];
 let shiftFixed         = {};  // key(YYYY-M-D-staffId) → { locked:true, reason:'' }
 let halfDayFlags       = {};  // key(YYYY-M-D-staffId) → true（通常勤務に半休フラグ）
@@ -3009,20 +3011,20 @@ function renderUnavailRequest() {
       <div style="display:flex;gap:20px;flex-wrap:wrap;">
         <div style="text-align:center;">
           <div style="font-size:28px;font-weight:700;color:${remainColor};">${remaining}</div>
-          <div style="font-size:11px;color:var(--text-muted);">残り申請回数</div>
+          <div style="font-size:11px;color:var(--text-muted);">${t('unavail_remaining')}</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:28px;font-weight:700;color:var(--primary);">${used}</div>
-          <div style="font-size:11px;color:var(--text-muted);">申請済み（承認待含む）</div>
+          <div style="font-size:11px;color:var(--text-muted);">${t('unavail_used')}</div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:28px;font-weight:700;">${MAX_UNAVAIL_PER_MONTH}</div>
-          <div style="font-size:11px;color:var(--text-muted);">月の上限</div>
+          <div style="font-size:11px;color:var(--text-muted);">${t('unavail_limit')}</div>
         </div>
       </div>
       <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">
-        締切：${thisYear}年${thisMonth}月${UNAVAIL_DEADLINE_DAY}日
-        ${deadlinePassed ? '<span style="color:var(--danger);font-weight:700;">（締切済み）</span>' : ''}
+        ${t('unavail_deadline')}：${thisYear}年${thisMonth}月${UNAVAIL_DEADLINE_DAY}日
+        ${deadlinePassed ? `<span style="color:var(--danger);font-weight:700;">${t('unavail_deadline_passed')}</span>` : ''}
       </div>`;
   }
 
@@ -3056,22 +3058,22 @@ function renderUnavailRequest() {
     onUnavailPatternChange();
   }
 
-  // 理由セレクトを初期化
+  // 理由セレクトを初期化（言語切替対応のため毎回再生成）
   const sel = document.getElementById('unavail-reason-input');
-  if (sel && sel.options.length <= 1) {
-    UNAVAIL_REASONS.forEach(r => {
+  if (sel) {
+    while (sel.options.length > 1) sel.remove(1);
+    UNAVAIL_REASONS.forEach(key => {
       const opt = document.createElement('option');
-      opt.value = r; opt.textContent = r;
+      opt.value = key; opt.textContent = t(key);
       sel.appendChild(opt);
     });
-    // 「その他」入力欄を追加
+    sel.onchange = onUnavailReasonChange;
     if (!document.getElementById('unavail-reason-other-wrap')) {
       const wrap = document.createElement('div');
       wrap.id = 'unavail-reason-other-wrap';
       wrap.style.cssText = 'display:none;margin-top:6px;';
-      wrap.innerHTML = '<input type="text" class="form-input" id="unavail-reason-other-input" placeholder="理由を具体的にご記入ください" maxlength="100">';
+      wrap.innerHTML = `<input type="text" class="form-input" id="unavail-reason-other-input" placeholder="${t('reason_other_placeholder')}" maxlength="100">`;
       sel.parentNode.appendChild(wrap);
-      sel.addEventListener('change', onUnavailReasonChange);
     }
   }
 
@@ -3109,25 +3111,25 @@ function renderUnavailRequest() {
   }
   histEl.innerHTML = myReqs.map(([id, r]) => {
     const w = dow(r.year, r.month, r.day);
-    const dateStr = `${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）`;
+    const dateStr = `${r.year}年${r.month}月${r.day}日（${weekdayLabel(w)}）`;
     const pat = r.patternId ? patById(r.patternId) : null;
     const patBadge = pat
       ? `<span class="shift-badge" style="background:${pat.bg};color:${pat.fg};font-size:11px;padding:1px 8px;">${pat.name}</span>`
       : '';
     const statusBadge = r.status === 'pending'
-      ? `<span style="background:#FFF3CD;color:#856404;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">⏳ 審査中</span>`
+      ? `<span style="background:#FFF3CD;color:#856404;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">⏳ ${t('unavail_status_pending')}</span>`
       : r.status === 'approved'
-        ? `<span style="background:#D4EDDA;color:#155724;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">✅ 承認</span>`
+        ? `<span style="background:#D4EDDA;color:#155724;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">✅ ${t('unavail_status_approved')}</span>`
         : r.status === 'cancelled'
-          ? `<span style="background:#E2E8F0;color:#475569;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">🚫 取消済</span>`
-          : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ 却下</span>`;
+          ? `<span style="background:#E2E8F0;color:#475569;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">🚫 ${t('unavail_status_cancelled')}</span>`
+          : `<span style="background:#F8D7DA;color:#721C24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;">❌ ${t('unavail_status_rejected')}</span>`;
     const cancelBtn = r.status === 'pending'
       ? `<button onclick="cancelUnavailRequest('${id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:11px;color:var(--text-muted);cursor:pointer;margin-left:6px;">取消</button>`
       : '';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
       <div>
         <div style="font-weight:700;font-size:13px;">${dateStr} ${patBadge}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${r.reason || ''}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${_displayReason(r)}</div>
       </div>
       <div style="display:flex;align-items:center;">${statusBadge}${cancelBtn}</div>
     </div>`;
@@ -3154,7 +3156,7 @@ function onUnavailReasonChange() {
   const sel = document.getElementById('unavail-reason-input');
   const wrap = document.getElementById('unavail-reason-other-wrap');
   if (!sel || !wrap) return;
-  wrap.style.display = sel.value === '📋 その他' ? '' : 'none';
+  wrap.style.display = sel.value === 'reason_other' ? '' : 'none';
 }
 
 function _renderUnavailNotifBanner() {
@@ -3191,20 +3193,20 @@ function dismissUnavailNotif() {
 
 // ===== 勤務希望申請：送信 =====
 function submitUnavailRequest() {
-  const dateVal  = document.getElementById('unavail-date-input').value;
-  const patId    = document.getElementById('unavail-pattern-input').value;
+  const dateVal   = document.getElementById('unavail-date-input').value;
+  const patId     = document.getElementById('unavail-pattern-input').value;
   const reasonSel = document.getElementById('unavail-reason-input').value;
-  const otherTxt = document.getElementById('unavail-reason-other-input')?.value.trim() || '';
-  const reason   = reasonSel === '📋 その他' ? `📋 その他：${otherTxt}` : reasonSel;
-  if (!dateVal)   { showToast('希望日を選択してください'); return; }
-  if (!patId)     { showToast('希望の勤務パターンを選択してください'); return; }
-  if (!reasonSel) { showToast('希望理由を選択してください'); return; }
-  if (reasonSel === '📋 その他' && !otherTxt) { showToast('「その他」を選択した場合は理由を記入してください'); return; }
+  const otherTxt  = document.getElementById('unavail-reason-other-input')?.value.trim() || '';
+  const reason    = reasonSel === 'reason_other' ? `reason_other:${otherTxt}` : reasonSel;
+  if (!dateVal)   { showToast(t('toast_select_date')); return; }
+  if (!patId)     { showToast(t('toast_select_pattern')); return; }
+  if (!reasonSel) { showToast(t('toast_select_reason')); return; }
+  if (reasonSel === 'reason_other' && !otherTxt) { showToast(t('toast_other_required')); return; }
   const [y, m, d] = dateVal.split('-').map(Number);
   const today     = new Date();
   const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const targetDate = new Date(y, m-1, d);
-  if (targetDate <= todayNorm) { showToast('過去・当日の日付は申請できません'); return; }
+  if (targetDate <= todayNorm) { showToast(t('toast_past_date')); return; }
   if (_unavailDeadlinePassed(y, m)) {
     const dm2 = m===1 ? 12 : m-1, dy2 = m===1 ? y-1 : y;
     showToast(`${y}年${m}月分の申請は${dy2}年${dm2}月${UNAVAIL_DEADLINE_DAY}日で締め切られました`);
@@ -3215,7 +3217,7 @@ function submitUnavailRequest() {
   const dup = Object.values(unavailRequests).find(r =>
     r.staffId === currentStaffId && r.year===y && r.month===m && r.day===d && r.status !== 'rejected'
   );
-  if (dup) { showToast('この日はすでに申請済みです'); return; }
+  if (dup) { showToast(t('toast_already_applied')); return; }
   const reqId = 'ur_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
   const req = {
     staffId: currentStaffId, staffName: currentStaffName,
@@ -3233,9 +3235,19 @@ function submitUnavailRequest() {
   const otherWrap = document.getElementById('unavail-reason-other-wrap');
   if (otherWrap) otherWrap.style.display = 'none';
   onUnavailPatternChange();
-  showToast('勤務希望申請を提出しました ✅');
+  showToast(t('toast_submitted'));
   renderUnavailRequest();
   _updateUnavailDot();
+}
+
+function _displayReason(r) {
+  if (!r.reason) return '';
+  if (r.reason.startsWith('reason_other:')) {
+    const text = r.reason.slice('reason_other:'.length);
+    return `${t_ja('reason_other')}：${text}`;
+  }
+  if (I18N.ja[r.reason]) return t_ja(r.reason);
+  return r.reason;
 }
 
 // ===== 勤務不可申請：管理者側レンダリング =====
@@ -3261,7 +3273,7 @@ function renderUnavailManage() {
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
           <div>
             <div style="font-weight:700;font-size:13px;">${r.staffName}　${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）${patBadge}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${r.reason || ''}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${_displayReason(r)}</div>
             <div style="font-size:11px;color:var(--text-muted);">申請日：${new Date(r.submittedAt).toLocaleDateString('ja-JP')}</div>
           </div>
           <div style="display:flex;gap:8px;">
@@ -3313,7 +3325,7 @@ function renderUnavailManage() {
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">
           <div>
             <div style="font-weight:700;font-size:13px;">${r.staffName}　${r.year}年${r.month}月${r.day}日（${WEEKDAYS[w]}）${patBadge}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${r.reason || ''}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${_displayReason(r)}</div>
             <div style="font-size:11px;color:var(--text-muted);">${processedDate}</div>
           </div>
           <div style="display:flex;align-items:center;">${badge}${cancelBtn}</div>
