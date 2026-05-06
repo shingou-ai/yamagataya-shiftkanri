@@ -1669,19 +1669,22 @@ function setLang(lang) {
 // Google Translate API
 const GOOGLE_TRANSLATE_API_KEY = 'AIzaSyA5VrRKigZGZaelmhrVcRNFP5lUuMD2gUg'; // Google CloudコンソールでTranslation APIに限定したキーを設定
 async function translateToJa(text) {
-  if (!GOOGLE_TRANSLATE_API_KEY || !text.trim()) return null;
+  console.log('[translateToJa] key=', GOOGLE_TRANSLATE_API_KEY ? 'SET' : 'EMPTY', 'text=', JSON.stringify(text));
+  if (!GOOGLE_TRANSLATE_API_KEY || !text.trim()) { console.log('[translateToJa] early return: no key or empty text'); return null; }
   try {
     const res = await fetch(
       `https://translation.googleapis.com/language/translate/v2?key=${GOOGLE_TRANSLATE_API_KEY}`,
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ q: text, target: 'ja', source: 'en' }) }
     );
+    console.log('[translateToJa] res.ok=', res.ok, 'status=', res.status);
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
       console.error('Google Translate API error', res.status, errBody);
       return null;
     }
     const data = await res.json();
+    console.log('[translateToJa] data=', JSON.stringify(data));
     return data.translations?.[0]?.translatedText ?? null;
   } catch(e) { console.error('translateToJa exception', e); return null; }
 }
