@@ -1669,24 +1669,17 @@ function setLang(lang) {
 // Google Translate API
 const GOOGLE_TRANSLATE_API_KEY = 'AIzaSyA5VrRKigZGZaelmhrVcRNFP5lUuMD2gUg'; // Google CloudコンソールでTranslation APIに限定したキーを設定
 async function translateToJa(text) {
-  console.log('[translateToJa] key=', GOOGLE_TRANSLATE_API_KEY ? 'SET' : 'EMPTY', 'text=', JSON.stringify(text));
-  if (!GOOGLE_TRANSLATE_API_KEY || !text.trim()) { console.log('[translateToJa] early return: no key or empty text'); return null; }
+  if (!GOOGLE_TRANSLATE_API_KEY || !text.trim()) return null;
   try {
     const res = await fetch(
       `https://translation.googleapis.com/language/translate/v2?key=${GOOGLE_TRANSLATE_API_KEY}`,
       { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ q: text, target: 'ja', source: 'en' }) }
     );
-    console.log('[translateToJa] res.ok=', res.ok, 'status=', res.status);
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      console.error('Google Translate API error', res.status, errBody);
-      return null;
-    }
+    if (!res.ok) return null;
     const data = await res.json();
-    console.log('[translateToJa] data=', JSON.stringify(data));
-    return data.translations?.[0]?.translatedText ?? null;
-  } catch(e) { console.error('translateToJa exception', e); return null; }
+    return data.data?.translations?.[0]?.translatedText ?? null;
+  } catch(e) { return null; }
 }
 
 let DEPTS = ['フロント','ルーム','板場','調理朝','部屋清掃','夜警','共用','洗浄'];
@@ -3229,9 +3222,7 @@ async function submitUnavailRequest() {
   );
   if (dup) { showToast(t('toast_already_applied')); return; }
 
-  // 「その他」理由・備考をまとめて翻訳
   const needsTranslate = (s) => s && /[a-zA-Z]/.test(s);
-  console.log('[translate debug] otherTxtRaw=', JSON.stringify(otherTxtRaw), 'noteRaw=', JSON.stringify(noteRaw), 'needsOther=', needsTranslate(otherTxtRaw));
   if (needsTranslate(otherTxtRaw) || needsTranslate(noteRaw)) showToast(t('toast_translating'));
 
   let otherTxt = otherTxtRaw;
@@ -3268,7 +3259,6 @@ async function submitUnavailRequest() {
     ...(noteTranslateError ? { noteTranslateError: true } : {}),
   };
   unavailRequests[reqId] = req;
-  console.log('[req debug]', JSON.stringify(req));
   fbSave(`/unavailRequests/${reqId}`, req);
   document.getElementById('unavail-date-input').value = '';
   document.getElementById('unavail-pattern-input').value = '';
