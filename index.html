@@ -3268,6 +3268,7 @@ async function submitUnavailRequest() {
     ...(noteTranslateError ? { noteTranslateError: true } : {}),
   };
   unavailRequests[reqId] = req;
+  console.log('[req debug]', JSON.stringify(req));
   fbSave(`/unavailRequests/${reqId}`, req);
   document.getElementById('unavail-date-input').value = '';
   document.getElementById('unavail-pattern-input').value = '';
