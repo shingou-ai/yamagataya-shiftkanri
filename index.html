@@ -3226,7 +3226,7 @@ async function submitUnavailRequest() {
   let note = noteRaw;
   let noteOriginal = null;
   let noteTranslateError = false;
-  if (currentLang === 'en' && noteRaw) {
+  if (noteRaw && /[a-zA-Z]/.test(noteRaw)) {
     showToast(t('toast_translating'));
     const translated = await translateToJa(noteRaw);
     if (translated) {
