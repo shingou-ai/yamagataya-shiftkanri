@@ -3228,6 +3228,7 @@ async function submitUnavailRequest() {
 
   // 「その他」理由・備考をまとめて翻訳
   const needsTranslate = (s) => s && /[a-zA-Z]/.test(s);
+  console.log('[translate debug] otherTxtRaw=', JSON.stringify(otherTxtRaw), 'noteRaw=', JSON.stringify(noteRaw), 'needsOther=', needsTranslate(otherTxtRaw));
   if (needsTranslate(otherTxtRaw) || needsTranslate(noteRaw)) showToast(t('toast_translating'));
 
   let otherTxt = otherTxtRaw;
